@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create release package
+        run: |
+          mkdir -p release/isekai-comfy-node
+          cp -r nodes utils __init__.py config.py README.md requirements.txt release/isekai-comfy-node/
+          cd release
+          zip -r ../isekai-comfy-node-v${{ steps.version.outputs.VERSION }}.zip isekai-comfy-node
+
+      - name: Generate release notes
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v4
+        with:
+          configuration: |
+            {
+              "categories": [
+                {
+                  "title": "## Features",
+                  "labels": ["feature", "enhancement"]
+                },
+                {
+                  "title": "## Bug Fixes",
+                  "labels": ["bug", "fix"]
+                },
+                {
+                  "title": "## Documentation",
+                  "labels": ["documentation"]
+                },
+                {
+                  "title": "## Other Changes",
+                  "labels": []
+                }
+              ],
+              "template": "#{{CHANGELOG}}\n\n**Full Changelog**: #{{RELEASE_DIFF}}"
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: isekai-comfy-node-v${{ steps.version.outputs.VERSION }}.zip
+          body: |
+            # Isekai ComfyUI Custom Node v${{ steps.version.outputs.VERSION }}
+
+            ## Installation
+
+            1. Download the ZIP file below
+            2. Extract to `ComfyUI/custom_nodes/` (the folder should be named `isekai-comfy-node`)
+            3. Run `pip install -r requirements.txt` in the extracted folder
+            4. Restart ComfyUI
+
+            ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

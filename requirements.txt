@@ -1,0 +1,13 @@
+# Isekai ComfyUI Custom Node Dependencies
+# These packages are required for the Isekai Upload node to function
+
+# Image processing
+Pillow>=10.0.0
+
+# HTTP requests for API communication
+requests>=2.31.0
+
+# torch and numpy are typically already installed with ComfyUI
+# but listed here for completeness
+torch>=2.0.0
+numpy>=1.24.0
