@@ -48,13 +48,15 @@ def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
     return pil_image
 
 
-def pil_to_bytes(pil_image: Image.Image, format: str = 'PNG') -> io.BytesIO:
+def pil_to_bytes(pil_image: Image.Image, format: str = 'PNG', **save_kwargs) -> io.BytesIO:
     """
-    Encode PIL Image to bytes buffer.
+    Encode PIL Image to bytes buffer with format-specific options.
 
     Args:
         pil_image: PIL Image to encode
         format: Image format (default: 'PNG'). Options: 'PNG', 'JPEG', 'WEBP'
+        **save_kwargs: Additional format-specific parameters passed to Image.save()
+                      (e.g., quality, compress_level, optimize, lossless)
 
     Returns:
         BytesIO buffer containing encoded image data
@@ -65,9 +67,15 @@ def pil_to_bytes(pil_image: Image.Image, format: str = 'PNG') -> io.BytesIO:
         >>> buffer = pil_to_bytes(img)
         >>> buffer.tell() > 0
         True
+        >>> buffer_hq = pil_to_bytes(img, format='JPEG', quality=95, optimize=True)
+        >>> buffer_hq.tell() > 0
+        True
     """
     buffer = io.BytesIO()
-    pil_image.save(buffer, format=format, optimize=True)
+    # Use save_kwargs if provided, otherwise default to optimize=True
+    if not save_kwargs:
+        save_kwargs = {"optimize": True}
+    pil_image.save(buffer, format=format, **save_kwargs)
     buffer.seek(0)
     return buffer
 
@@ -93,3 +101,40 @@ def tensor_to_bytes(tensor: torch.Tensor, format: str = 'PNG') -> io.BytesIO:
     """
     pil_image = tensor_to_pil(tensor)
     return pil_to_bytes(pil_image, format=format)
+
+
+def pil_to_tensor(pil_image: Image.Image) -> torch.Tensor:
+    """
+    Convert PIL Image to ComfyUI IMAGE tensor.
+
+    Reverses tensor_to_pil() for round-trip conversion.
+
+    Args:
+        pil_image: PIL Image in RGB mode
+
+    Returns:
+        ComfyUI IMAGE tensor [1,H,W,C], dtype=float32, range=[0.0,1.0]
+
+    Example:
+        >>> from PIL import Image
+        >>> img = Image.new('RGB', (100, 100), color='red')
+        >>> tensor = pil_to_tensor(img)
+        >>> tensor.shape
+        torch.Size([1, 100, 100, 3])
+        >>> tensor.dtype
+        torch.float32
+    """
+    # Ensure RGB mode
+    if pil_image.mode != 'RGB':
+        pil_image = pil_image.convert('RGB')
+
+    # Convert to numpy array
+    image_np = np.array(pil_image).astype(np.float32)
+
+    # Scale from [0, 255] to [0.0, 1.0]
+    image_np = image_np / 255.0
+
+    # Convert to tensor and add batch dimension [H,W,C] -> [1,H,W,C]
+    tensor = torch.from_numpy(image_np).unsqueeze(0)
+
+    return tensor

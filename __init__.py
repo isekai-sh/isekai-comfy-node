@@ -17,6 +17,7 @@ _NODE_DEFINITIONS = {
     "IsekaiOllamaSummarizer": ("IsekaiOllamaSummarizer", "Isekai Ollama Summarizer"),
     "IsekaiRoundRobin": ("IsekaiRoundRobin", "Isekai Round Robin"),
     "IsekaiLoadText": ("IsekaiLoadText", "Isekai Load Text"),
+    "IsekaiCompressImage": ("IsekaiCompressImage", "Isekai Compress Image"),
 }
 
 # Register nodes that successfully imported

@@ -49,6 +49,11 @@ class IsekaiUploadError(IsekaiException):
     pass
 
 
+class IsekaiCompressionError(IsekaiException):
+    """Image compression failed"""
+    pass
+
+
 class IsekaiConnectionError(IsekaiException):
     """Network connection failed"""
     pass

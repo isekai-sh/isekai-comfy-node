@@ -49,3 +49,9 @@ try:
     __all__.append("IsekaiLoadText")
 except ImportError:
     pass
+
+try:
+    from .compress_image_node import IsekaiCompressImage
+    __all__.append("IsekaiCompressImage")
+except ImportError:
+    pass

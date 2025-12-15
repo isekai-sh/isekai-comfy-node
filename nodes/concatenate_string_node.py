@@ -11,7 +11,7 @@ class IsekaiConcatenateString:
     """
     Joins multiple string inputs with a configurable delimiter.
 
-    This node accepts up to 6 optional string inputs (text_a through text_f)
+    This node accepts up to 10 optional string inputs (text_a through text_j)
     and concatenates them using the specified delimiter. Only non-empty inputs
     are included in the concatenation.
 
@@ -37,7 +37,7 @@ class IsekaiConcatenateString:
         Returns:
             Dictionary containing required and optional input specifications:
             - delimiter: String to use between joined texts (required)
-            - text_a through text_f: Optional string inputs (forceInput=True)
+            - text_a through text_j: Optional string inputs (forceInput=True)
         """
         return {
             "required": {
@@ -53,6 +53,10 @@ class IsekaiConcatenateString:
                 "text_d": ("STRING", {"forceInput": True, "multiline": True}),
                 "text_e": ("STRING", {"forceInput": True, "multiline": True}),
                 "text_f": ("STRING", {"forceInput": True, "multiline": True}),
+                "text_g": ("STRING", {"forceInput": True, "multiline": True}),
+                "text_h": ("STRING", {"forceInput": True, "multiline": True}),
+                "text_i": ("STRING", {"forceInput": True, "multiline": True}),
+                "text_j": ("STRING", {"forceInput": True, "multiline": True}),
             }
         }
 
@@ -69,7 +73,11 @@ class IsekaiConcatenateString:
         text_c: Optional[str] = None,
         text_d: Optional[str] = None,
         text_e: Optional[str] = None,
-        text_f: Optional[str] = None
+        text_f: Optional[str] = None,
+        text_g: Optional[str] = None,
+        text_h: Optional[str] = None,
+        text_i: Optional[str] = None,
+        text_j: Optional[str] = None
     ) -> Tuple[str]:
         """
         Concatenate multiple string inputs with delimiter.
@@ -86,6 +94,10 @@ class IsekaiConcatenateString:
             text_d: Fourth optional text input
             text_e: Fifth optional text input
             text_f: Sixth optional text input
+            text_g: Seventh optional text input
+            text_h: Eighth optional text input
+            text_i: Ninth optional text input
+            text_j: Tenth optional text input
 
         Returns:
             Tuple containing concatenated string. Returns empty string if
@@ -104,7 +116,11 @@ class IsekaiConcatenateString:
             'text_c': text_c,
             'text_d': text_d,
             'text_e': text_e,
-            'text_f': text_f
+            'text_f': text_f,
+            'text_g': text_g,
+            'text_h': text_h,
+            'text_i': text_i,
+            'text_j': text_j
         }
 
         # Sort keys alphabetically to ensure consistent ordering (A before B before C, etc.)
