@@ -14,9 +14,10 @@ _Extract the ZIP file to `ComfyUI/custom_nodes/` and restart ComfyUI_
 
 ## Features
 
-### Image Upload
+### Image Processing
 
 - **Isekai Upload**: Direct upload from ComfyUI to Isekai platform with pass-through IMAGE output
+- **Isekai Compress Image**: Compress images with format selection (PNG/JPEG/WEBP) and quality presets
 - Support for titles and tags
 - Comprehensive error handling and rate limiting protection
 
@@ -102,7 +103,86 @@ VAE Decode → Isekai Upload → Preview Image
 
 ---
 
-### 2. Isekai Dynamic String
+### 2. Isekai Compress Image
+
+Compress images with configurable format and quality settings to reduce file size before upload or save operations.
+
+**Location:** Isekai > Isekai Compress Image
+
+**Inputs:**
+
+- `image` (IMAGE, required): Image tensor from any image-producing node
+- `format` (DROPDOWN, required): Output format - PNG, JPEG, or WEBP
+- `preset` (DROPDOWN, required): Quality preset - Maximum Quality, High Quality, Balanced, Maximum Compression, or Custom
+- `quality` (INT, optional): Manual quality slider (1-100, only used when preset is "Custom")
+
+**Outputs:**
+
+- `compressed_image` (IMAGE): Compressed image as tensor (maintains [1,H,W,C] float32 format)
+
+**Format Options:**
+
+- **PNG**: Lossless compression, best for workflows, larger files, supports transparency
+- **JPEG**: Lossy compression, no transparency, good for photos, smaller files
+- **WEBP**: Modern format with excellent compression, lossy or lossless modes
+
+**Quality Presets:**
+
+| Preset | PNG | JPEG | WEBP | Use Case |
+|--------|-----|------|------|----------|
+| Maximum Quality | compress_level=6, no optimize | quality=95 | Lossless | Best quality, larger files |
+| High Quality (Recommended) | compress_level=6, optimized | quality=85 | quality=90 | Excellent quality, good compression |
+| Balanced | compress_level=9, optimized | quality=75 | quality=80 | Balance quality and size |
+| Maximum Compression | compress_level=9, optimized | quality=60 | quality=60 | Smallest files, some quality loss |
+| Custom | compress_level=9, optimized | quality=slider | quality=slider | Manual control via slider |
+
+**Use Cases:**
+
+- Reduce file size before uploading to save bandwidth and storage
+- Optimize images for different output purposes (web, print, archive)
+- Convert between formats while maintaining ComfyUI compatibility
+- Reduce memory usage in complex workflows
+
+**Example Workflow:**
+
+```
+Load Image → Compress Image → Isekai Upload
+             ↓ format: JPEG
+             ↓ preset: High Quality
+```
+
+**With Multiple Outputs:**
+
+```
+VAE Decode → Compress Image ┬→ Save Image (web version)
+             ↓ JPEG/Balanced │
+                              └→ Compress Image → Save Image (archive)
+                                 PNG/Maximum Quality
+```
+
+**Technical Notes:**
+
+- Performs round-trip conversion: tensor → PIL → compressed → PIL → tensor
+- Maintains ComfyUI IMAGE tensor format [1,H,W,C], float32, range [0.0-1.0]
+- Processes first image only if batch tensor provided (matches upload node behavior)
+- Compression happens in-memory (no disk I/O)
+- Returns original image unchanged if compression fails
+- JPEG format converts transparency to white background
+- Upload node re-encodes to PNG, so compression primarily helps with workflow memory and Save Image nodes
+
+**Console Output:**
+
+```
+[Isekai] Compressing image with format=JPEG, preset=High Quality
+[Isekai] Original image size: 1024x1024, mode: RGB
+[Isekai] Compression successful!
+[Isekai] Compressed size: 234.56 KB
+[Isekai] Output tensor shape: torch.Size([1, 1024, 1024, 3]), dtype: torch.float32
+```
+
+---
+
+### 3. Isekai Dynamic String
 
 Randomly select one line from multiline text with reproducible results.
 
@@ -144,7 +224,7 @@ Isekai Dynamic String → Text Concatenate → CLIP Text Encode
 
 ---
 
-### 3. Isekai Concatenate String
+### 4. Isekai Concatenate String
 
 Join multiple string inputs with a configurable delimiter.
 
@@ -153,7 +233,7 @@ Join multiple string inputs with a configurable delimiter.
 **Inputs:**
 
 - `delimiter` (STRING, required): Character(s) to place between joined texts (default: " ")
-- `text_a` through `text_f` (STRING, optional): Up to 6 text inputs (connect via node links)
+- `text_a` through `text_j` (STRING, optional): Up to 10 text inputs (connect via node links)
 
 **Outputs:**
 
@@ -195,7 +275,7 @@ Manual Text → text_c ┘   (delimiter: ", ")
 
 ---
 
-### 4. Isekai Tag Selector
+### 5. Isekai Tag Selector
 
 Dictionary-based tag lookup using trigger words with TOML/INI format.
 
@@ -290,7 +370,7 @@ dark, gotham, rich, bat signal
 
 ---
 
-### 5. Isekai Ollama Summarizer
+### 6. Isekai Ollama Summarizer
 
 Generate short, catchy titles from long prompts using local Ollama LLMs.
 
@@ -348,7 +428,7 @@ ollama pull llama3
 curl http://localhost:11434/api/tags
 ```
 
-### 6. Isekai Round Robin
+### 7. Isekai Round Robin
 
 Cycle through items in batch-completion mode using a round-robin pattern, ensuring equal distribution of images per item.
 
@@ -437,7 +517,7 @@ Isekai Round Robin ──→ Isekai Tag Selector ──→ Isekai Concatenate St
 
 ---
 
-### 7. Isekai Load Text
+### 8. Isekai Load Text
 
 Load text from a file and output it as a string using a dropdown selector or custom path.
 
@@ -702,6 +782,7 @@ isekai-comfy-node/
 │   ├── __init__.py
 │   ├── base.py          # Base classes and exceptions
 │   ├── upload_node.py   # Isekai Upload
+│   ├── compress_image_node.py # Isekai Compress Image
 │   ├── dynamic_string_node.py
 │   ├── concatenate_string_node.py
 │   ├── tag_selector_node.py
