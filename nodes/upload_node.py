@@ -54,6 +54,8 @@ class IsekaiUploadNode:
             - api_key: Isekai API key (format: isk_[64 hex chars])
             - title: Upload title (required, max 200 characters)
             - tags: Comma-separated tags (optional)
+            - format: Image format - PNG or JPEG (optional, default: PNG)
+            - quality: Compression quality 1-100 (optional, default: 30)
         """
         return {
             "required": {
@@ -73,6 +75,16 @@ class IsekaiUploadNode:
                     "multiline": False,
                     "placeholder": "tag1, tag2, tag3"
                 }),
+                "format": (["JPEG", "PNG"], {
+                    "default": "JPEG"
+                }),
+                "quality": ("INT", {
+                    "default": 90,
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "display": "slider"
+                }),
             }
         }
 
@@ -81,21 +93,46 @@ class IsekaiUploadNode:
     CATEGORY = "Isekai"
     OUTPUT_NODE = True
 
+    def _get_save_kwargs(self, format: str, quality: int) -> dict:
+        """
+        Get PIL Image.save() kwargs for compression based on format and quality.
+
+        Args:
+            format: Image format ('PNG', 'JPEG')
+            quality: Quality value (1-100)
+
+        Returns:
+            Dictionary of kwargs to pass to Image.save()
+        """
+        if format == "PNG":
+            # PNG uses compress_level (0-9), quality is ignored
+            # Map quality 1-100 to compress_level 9-0 (higher quality = lower compression)
+            compress_level = max(0, min(9, int((100 - quality) / 11)))
+            return {"compress_level": compress_level, "optimize": True}
+        else:  # JPEG
+            return {"quality": quality, "optimize": True}
+
     def upload(
         self,
         image: torch.Tensor,
         api_key: str,
         title: str,
-        tags: str = ""
+        tags: str = "",
+        format: str = "JPEG",
+        quality: int = 90
     ) -> Tuple[torch.Tensor]:
         """
-        Upload image to Isekai platform with metadata.
+        Upload image to Isekai platform with metadata and compression.
 
         Args:
             image: ComfyUI IMAGE tensor [B,H,W,C], float32, range [0.0,1.0]
             api_key: Isekai API key (format: isk_[64 hex characters])
             title: Upload title (max 200 characters, will be truncated if longer)
             tags: Comma-separated tags (optional)
+            format: Image format for upload ('JPEG' or 'PNG', default: 'JPEG')
+            quality: Compression quality 1-100 (default: 90)
+                    - For JPEG: Direct quality parameter (90 = excellent quality)
+                    - For PNG: Mapped to compress_level (higher quality = less compression)
 
         Returns:
             Tuple containing the input image unchanged (pass-through for preview)
@@ -106,7 +143,8 @@ class IsekaiUploadNode:
         Example:
             >>> node = IsekaiUploadNode()
             >>> image_tensor = torch.rand(1, 512, 512, 3)
-            >>> result = node.upload(image_tensor, "isk_" + "a"*64, "My Image")
+            >>> result = node.upload(image_tensor, "isk_" + "a"*64, "My Image",
+            ...                      format="JPEG", quality=30)
             >>> result[0] is image_tensor
             True
         """
@@ -128,12 +166,20 @@ class IsekaiUploadNode:
             print("[Isekai] Converting image tensor to PIL Image...")
             pil_image = tensor_to_pil(image)
 
-            # Encode to PNG bytes
-            print("[Isekai] Encoding image as PNG...")
-            image_bytes = pil_to_bytes(pil_image)
+            # Get compression settings
+            save_kwargs = self._get_save_kwargs(format, quality)
 
-            # Generate filename
-            filename = self._generate_filename(sanitized_title)
+            # Encode with compression
+            print(f"[Isekai] Encoding image as {format} with quality={quality}...")
+            print(f"[Isekai] Compression settings: {save_kwargs}")
+            image_bytes = pil_to_bytes(pil_image, format=format, **save_kwargs)
+
+            # Log compressed size
+            compressed_size_kb = len(image_bytes.getvalue()) / 1024
+            print(f"[Isekai] Compressed image size: {compressed_size_kb:.2f} KB")
+
+            # Generate filename with correct extension
+            filename = self._generate_filename(sanitized_title, format)
 
             # Prepare metadata
             metadata = {
@@ -143,7 +189,7 @@ class IsekaiUploadNode:
 
             # Upload to Isekai
             print(f"[Isekai] Uploading '{sanitized_title}' to Isekai...")
-            result = self._upload_to_isekai(image_bytes, filename, api_key, metadata)
+            result = self._upload_to_isekai(image_bytes, filename, api_key, metadata, format)
 
             # Success message
             deviation_id = result.get("deviationId")
@@ -160,19 +206,21 @@ class IsekaiUploadNode:
         except Exception as e:
             raise IsekaiUploadError(f"Unexpected error during upload: {str(e)}")
 
-    def _generate_filename(self, title: str) -> str:
+    def _generate_filename(self, title: str, format: str = "PNG") -> str:
         """
-        Generate a safe filename from title with timestamp.
+        Generate a safe filename from title with timestamp and format extension.
 
         Args:
             title: Title string to use for filename
+            format: Image format ('PNG' or 'JPEG')
 
         Returns:
-            Safe filename with format: sanitized_title_YYYYMMDD_HHMMSS.png
+            Safe filename with format: sanitized_title_YYYYMMDD_HHMMSS.{ext}
         """
         safe_title = sanitize_filename(title, max_length=100)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_title}_{timestamp}.png"
+        extension = "jpg" if format == "JPEG" else "png"
+        filename = f"{safe_title}_{timestamp}.{extension}"
         return filename
 
     def _upload_to_isekai(
@@ -180,7 +228,8 @@ class IsekaiUploadNode:
         image_bytes: bytes,
         filename: str,
         api_key: str,
-        metadata: Dict[str, str]
+        metadata: Dict[str, str],
+        format: str = "PNG"
     ) -> Dict[str, Any]:
         """
         Upload image and metadata to Isekai API.
@@ -190,6 +239,7 @@ class IsekaiUploadNode:
             filename: Filename for the upload
             api_key: Isekai API key
             metadata: Dictionary containing title and tags
+            format: Image format ('PNG' or 'JPEG')
 
         Returns:
             API response as dictionary
@@ -200,8 +250,11 @@ class IsekaiUploadNode:
         api_url = get_api_url()
         upload_url = f"{api_url}/api/comfyui/upload"
 
+        # Determine content type based on format
+        content_type = "image/jpeg" if format == "JPEG" else "image/png"
+
         headers = {"Authorization": f"Bearer {api_key}"}
-        files = {"file": (filename, image_bytes, "image/png")}
+        files = {"file": (filename, image_bytes, content_type)}
         data = {
             "title": metadata["title"][:200],
             "isAiGenerated": "true",

@@ -75,6 +75,7 @@ def pil_to_bytes(pil_image: Image.Image, format: str = 'PNG', **save_kwargs) -> 
     # Use save_kwargs if provided, otherwise default to optimize=True
     if not save_kwargs:
         save_kwargs = {"optimize": True}
+
     pil_image.save(buffer, format=format, **save_kwargs)
     buffer.seek(0)
     return buffer

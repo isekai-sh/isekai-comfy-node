@@ -4,7 +4,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/github/license/isekai-sh/isekai-comfy-node)](LICENSE)
 
-Upload AI-generated images and enhance your ComfyUI workflows with powerful string utilities and AI integration.
+Upload and compress AI-generated images and enhance your ComfyUI workflows with powerful string utilities and AI integration.
 
 ## Quick Download
 
@@ -16,15 +16,16 @@ _Extract the ZIP file to `ComfyUI/custom_nodes/` and restart ComfyUI_
 
 ### Image Processing
 
-- **Isekai Upload**: Direct upload from ComfyUI to Isekai platform with pass-through IMAGE output
-- **Isekai Compress Image**: Compress images with format selection (PNG/JPEG/WEBP) and quality presets
-- Support for titles and tags
+- **Isekai Upload**: Direct upload with built-in compression (JPEG/PNG, quality 90 default)
+- **Isekai Compress and Save**: Compress and save images to disk (JPEG/PNG/WEBP)
+- Reduce upload sizes by 80-90% with JPEG compression
+- Support for titles, tags, and quality settings
 - Comprehensive error handling and rate limiting protection
 
 ### String Utilities
 
 - **Dynamic String**: Random line selector with reproducible seeds
-- **Concatenate String**: Join multiple text inputs with custom delimiters
+- **Concatenate String**: Join up to 10 text inputs with custom delimiters
 - **Tag Selector**: Dictionary-based tag lookup system
 - **Round Robin**: Batch-completion cycler for equal distribution (e.g., 32 images per character)
 - **Load Text**: Load text from files using dropdown selector or custom paths
@@ -81,6 +82,12 @@ Upload generated images directly to the Isekai platform.
 - `api_key` (STRING, required): Your Isekai API key (format: `isk_[64 hex chars]`)
 - `title` (STRING, required): Title for your artwork (max 200 characters, auto-truncated)
 - `tags` (STRING, optional): Comma-separated tags (e.g., "fantasy, portrait, digital art")
+- `format` (DROPDOWN, optional): Image format - JPEG or PNG (default: JPEG)
+- `quality` (INT slider, optional): Compression quality 1-100 (default: 90)
+  - Lower values = smaller file size, lower quality
+  - Higher values = larger file size, better quality
+  - JPEG quality 90 reduces file size by ~80-90% with excellent quality
+  - PNG quality affects compress_level (higher quality = less compression)
 
 **Outputs:**
 
@@ -95,6 +102,20 @@ VAE Decode → Isekai Upload → Preview Image
              ↓ tags: "fantasy, warrior, armor"
 ```
 
+**Compression Benefits:**
+
+- **Reduce bandwidth**: JPEG quality 90 can reduce upload size by ~80-90% with excellent quality
+- **Save storage**: Smaller files mean more uploads within storage quotas
+- **Faster uploads**: Smaller files upload significantly faster
+- **Format flexibility**: Choose PNG for lossless or JPEG for lossy compression
+
+**Recommended Settings:**
+
+- **High quality (default)**: JPEG, quality 90 (80-90% size reduction, excellent quality)
+- **Balanced**: JPEG, quality 75-85 (85-92% size reduction, very good quality)
+- **Maximum compression**: JPEG, quality 30-60 (93-95% size reduction, acceptable quality)
+- **Lossless**: PNG, quality 100 (no quality loss, ~20-30% compression only)
+
 **After Upload:**
 
 - Images appear in Isekai dashboard with status "review"
@@ -103,82 +124,85 @@ VAE Decode → Isekai Upload → Preview Image
 
 ---
 
-### 2. Isekai Compress Image
+### 2. Isekai Compress and Save
 
-Compress images with configurable format and quality settings to reduce file size before upload or save operations.
+Compress and save images to disk with full control over format, quality, and filenames.
 
-**Location:** Isekai > Isekai Compress Image
+**Location:** Isekai > Isekai Compress and Save
 
 **Inputs:**
 
-- `image` (IMAGE, required): Image tensor from any image-producing node
-- `format` (DROPDOWN, required): Output format - PNG, JPEG, or WEBP
-- `preset` (DROPDOWN, required): Quality preset - Maximum Quality, High Quality, Balanced, Maximum Compression, or Custom
-- `quality` (INT, optional): Manual quality slider (1-100, only used when preset is "Custom")
+- `images` (IMAGE, required): Image tensor from any image-producing node
+- `filename` (STRING, required): Base filename (default: "isekai")
+- `format` (DROPDOWN, required): Output format - JPEG, PNG, or WEBP (default: JPEG)
+- `quality` (INT slider, required): Compression quality 1-100 (default: 90)
+  - Lower = smaller files, lower quality
+  - Higher = larger files, better quality
 
 **Outputs:**
 
-- `compressed_image` (IMAGE): Compressed image as tensor (maintains [1,H,W,C] float32 format)
+- None (terminal node - saves to disk)
+- Images saved to `ComfyUI/output/` folder
 
 **Format Options:**
 
-- **PNG**: Lossless compression, best for workflows, larger files, supports transparency
-- **JPEG**: Lossy compression, no transparency, good for photos, smaller files
-- **WEBP**: Modern format with excellent compression, lossy or lossless modes
+- **PNG**: Lossless compression, supports transparency
+- **JPEG**: Lossy compression, smaller files, no transparency
+- **WEBP**: Modern format, excellent compression, best of both worlds
 
-**Quality Presets:**
+**Filename Pattern:**
 
-| Preset | PNG | JPEG | WEBP | Use Case |
-|--------|-----|------|------|----------|
-| Maximum Quality | compress_level=6, no optimize | quality=95 | Lossless | Best quality, larger files |
-| High Quality (Recommended) | compress_level=6, optimized | quality=85 | quality=90 | Excellent quality, good compression |
-| Balanced | compress_level=9, optimized | quality=75 | quality=80 | Balance quality and size |
-| Maximum Compression | compress_level=9, optimized | quality=60 | quality=60 | Smallest files, some quality loss |
-| Custom | compress_level=9, optimized | quality=slider | quality=slider | Manual control via slider |
+```
+{filename}_{counter}.{extension}
+
+Examples:
+- filename="artwork" → artwork_00001.jpg
+- filename="character" → character_00001.jpg
+- filename="render" → render_00001.webp
+```
 
 **Use Cases:**
 
-- Reduce file size before uploading to save bandwidth and storage
-- Optimize images for different output purposes (web, print, archive)
-- Convert between formats while maintaining ComfyUI compatibility
-- Reduce memory usage in complex workflows
+- Save compressed images directly without intermediate nodes
+- Batch save with automatic numbering
+- Reduce disk space usage with quality control
+- Quick export with custom filenames
 
 **Example Workflow:**
 
 ```
-Load Image → Compress Image → Isekai Upload
+VAE Decode → Isekai Compress and Save
+             ↓ filename: "artwork"
              ↓ format: JPEG
-             ↓ preset: High Quality
+             ↓ quality: 90
+             → Saves to: output/artwork_00001.jpg
 ```
 
-**With Multiple Outputs:**
+**High Quality PNG:**
 
 ```
-VAE Decode → Compress Image ┬→ Save Image (web version)
-             ↓ JPEG/Balanced │
-                              └→ Compress Image → Save Image (archive)
-                                 PNG/Maximum Quality
+VAE Decode → Isekai Compress and Save
+             ↓ filename: "final_render"
+             ↓ format: PNG
+             ↓ quality: 95
+             → Saves to: output/final_render_00001.png
 ```
-
-**Technical Notes:**
-
-- Performs round-trip conversion: tensor → PIL → compressed → PIL → tensor
-- Maintains ComfyUI IMAGE tensor format [1,H,W,C], float32, range [0.0-1.0]
-- Processes first image only if batch tensor provided (matches upload node behavior)
-- Compression happens in-memory (no disk I/O)
-- Returns original image unchanged if compression fails
-- JPEG format converts transparency to white background
-- Upload node re-encodes to PNG, so compression primarily helps with workflow memory and Save Image nodes
 
 **Console Output:**
 
 ```
-[Isekai] Compressing image with format=JPEG, preset=High Quality
-[Isekai] Original image size: 1024x1024, mode: RGB
-[Isekai] Compression successful!
-[Isekai] Compressed size: 234.56 KB
-[Isekai] Output tensor shape: torch.Size([1, 1024, 1024, 3]), dtype: torch.float32
+[Isekai] Compressing and saving 1 image(s)...
+[Isekai] Format: JPEG, Quality: 90
+[Isekai] Save settings: {'quality': 90, 'optimize': True}
+[Isekai] Saved: artwork_00001.jpg (156.34 KB)
 ```
+
+**Tips:**
+
+- ✅ Counter auto-increments to avoid overwriting files
+- ✅ JPEG quality 90 (default) is recommended for excellent quality with good compression
+- ✅ PNG with high quality (90-100) for archival or when transparency is needed
+- ✅ WEBP offers best compression but may have compatibility issues
 
 ---
 
@@ -781,8 +805,8 @@ isekai-comfy-node/
 ├── nodes/               # Node implementations
 │   ├── __init__.py
 │   ├── base.py          # Base classes and exceptions
-│   ├── upload_node.py   # Isekai Upload
-│   ├── compress_image_node.py # Isekai Compress Image
+│   ├── upload_node.py   # Isekai Upload (with compression)
+│   ├── compress_and_save_node.py # Isekai Compress and Save
 │   ├── dynamic_string_node.py
 │   ├── concatenate_string_node.py
 │   ├── tag_selector_node.py

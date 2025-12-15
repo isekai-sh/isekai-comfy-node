@@ -51,7 +51,7 @@ except ImportError:
     pass
 
 try:
-    from .compress_image_node import IsekaiCompressImage
-    __all__.append("IsekaiCompressImage")
+    from .compress_and_save_node import IsekaiCompressAndSave
+    __all__.append("IsekaiCompressAndSave")
 except ImportError:
     pass
