@@ -503,7 +503,7 @@ Cycle through items in batch-completion mode using a round-robin pattern, ensuri
 
 - `text_list` (STRING, required, multiline): Items to cycle through (one per line)
 - `images_per_item` (INT, required): Number of images to generate per item (1-1000, default: 32)
-- `reset_trigger` (BOOLEAN, required): Set to True to reset cycler to first item (default: False)
+- `batch_id` (STRING, required): Unique identifier for this batch job (default: "default")
 
 **Outputs:**
 
@@ -514,10 +514,11 @@ Cycle through items in batch-completion mode using a round-robin pattern, ensuri
 **Behavior:**
 
 - **Batch Completion**: Generates ALL images for Item A before moving to Item B
-- **State Persistence**: Maintains state across multiple executions within a session
+- **State Persistence**: State is bound to `batch_id` - different batch IDs maintain separate counters
 - **Auto-Reset**: After all items complete, automatically cycles back to the first item
-- **Session-Scoped**: State clears when ComfyUI restarts
+- **Auto-Cleanup**: State clears automatically when ComfyUI restarts (stored in temp directory)
 - **Smart Progress**: Shows both item progress and overall completion
+- **Multi-Batch Support**: Run multiple independent batches by using different batch IDs
 
 **Use Cases:**
 
@@ -528,15 +529,17 @@ Cycle through items in batch-completion mode using a round-robin pattern, ensuri
 
 **How to Use:**
 
-1. **Set up your items** (one per line in `text_list`)
-2. **Set `images_per_item`** (e.g., 32)
-3. **Check the console output** on first run - you'll see:
+1. **Set a unique `batch_id`** (e.g., "character_batch_1", "props_batch_2")
+2. **Set up your items** (one per line in `text_list`)
+3. **Set `images_per_item`** (e.g., 32)
+4. **Check the console output** on first run - you'll see:
    ```
    💡 TIP: Set batch count to 96 to complete all items
    3 items × 32 images = 96 total executions
+   Batch ID: character_batch_1
    ```
-4. **Set batch count to the suggested number** (or use `batch_count_needed` output)
-5. **Queue once** and let it complete automatically!
+5. **Set batch count to the suggested number** (or use `batch_count_needed` output)
+6. **Queue once** and let it complete automatically!
 
 **Example:**
 
@@ -544,10 +547,12 @@ Cycle through items in batch-completion mode using a round-robin pattern, ensuri
 Input:
   text_list: Alice\nBob\nCharlie
   images_per_item: 32
-  reset_trigger: False
+  batch_id: "character_batch_1"
 
 Output on first run:
   Console: "💡 TIP: Set batch count to 96 to complete all items"
+  Console: "3 items × 32 images = 96 total executions"
+  Console: "Batch ID: character_batch_1"
 
 Execution 1: "Alice", "Alice: 1/32 | Total: 1/96", 96
 Execution 16: "Alice", "Alice: 16/32 | Total: 16/96", 96
@@ -566,6 +571,22 @@ Isekai Round Robin ──→ Isekai Tag Selector ──→ Isekai Concatenate St
     └─→ batch_count_needed ──→ Display/Note (shows "96")
 ```
 
+**Multiple Independent Batches:**
+
+```
+Workflow 1:
+  batch_id: "characters_batch"
+  text_list: Alice\nBob\nCharlie
+  → Counter at: Alice 15/32
+
+Workflow 2:
+  batch_id: "props_batch"
+  text_list: sword\nshield\nbow
+  → Counter at: shield 8/32
+
+Both run independently with separate states!
+```
+
 **vs. Isekai Dynamic String:**
 
 - **Dynamic String**: Random selection with seed (non-uniform distribution)
@@ -573,12 +594,15 @@ Isekai Round Robin ──→ Isekai Tag Selector ──→ Isekai Concatenate St
 
 **Tips:**
 
+- ✅ **Use unique batch IDs**: Each batch job should have its own identifier (e.g., "batch_001", "characters_v2")
 - ✅ **Use `batch_count_needed` output**: Connect to a display node to see exactly how many times to queue
-- ✅ **Watch the console**: On initialization, you'll see helpful tips about batch count
+- ✅ **Watch the console**: On initialization, you'll see helpful tips about batch count and batch ID
 - ✅ **Monitor global progress**: The progress_info shows "Total: X/Y" so you always know where you are
-- Keep `reset_trigger` at False during normal operation
-- Set `reset_trigger` to True temporarily when you want to start over
-- Different item lists maintain separate state (based on content hash)
+- ✅ **Multiple batches**: Different batch_ids allow running multiple independent jobs simultaneously
+- State is stored in `ComfyUI/temp/isekai/round_robin/{batch_id}.log`
+- State automatically clears when ComfyUI restarts
+- If you change `images_per_item` mid-batch, the counter resets automatically
+- To start over: Restart ComfyUI or use a new batch_id
 
 ---
 
