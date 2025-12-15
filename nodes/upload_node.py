@@ -5,6 +5,7 @@ This module provides functionality to upload generated images directly to the Is
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Tuple, Dict, Any
 
@@ -51,25 +52,26 @@ class IsekaiUploadNode:
         Returns:
             Dictionary containing required and optional input specifications:
             - image: ComfyUI IMAGE tensor
-            - api_key: Isekai API key (format: isk_[64 hex chars])
             - title: Upload title (required, max 200 characters)
+            - api_key: Isekai API key (optional, uses ISEKAI_API_KEY env var if not provided)
             - tags: Comma-separated tags (optional)
-            - format: Image format - PNG or JPEG (optional, default: PNG)
-            - quality: Compression quality 1-100 (optional, default: 30)
+            - format: Image format - JPEG or PNG (optional, default: JPEG)
+            - quality: Compression quality 1-100 (optional, default: 90)
         """
         return {
             "required": {
                 "image": ("IMAGE",),
-                "api_key": ("STRING", {
-                    "default": "",
-                    "multiline": False,
-                }),
                 "title": ("STRING", {
                     "default": "ComfyUI Upload",
                     "multiline": False,
                 }),
             },
             "optional": {
+                "api_key": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "placeholder": "Leave empty to use ISEKAI_API_KEY environment variable"
+                }),
                 "tags": ("STRING", {
                     "default": "",
                     "multiline": False,
@@ -93,6 +95,42 @@ class IsekaiUploadNode:
     CATEGORY = "Isekai"
     OUTPUT_NODE = True
 
+    def _get_api_key(self, api_key_input: str = "") -> str:
+        """
+        Get API key from input or environment variable.
+
+        Priority:
+        1. Environment variable ISEKAI_API_KEY (recommended, more secure)
+        2. Node input api_key parameter (fallback)
+
+        Args:
+            api_key_input: API key from node input (optional)
+
+        Returns:
+            API key string
+
+        Raises:
+            IsekaiUploadError: If no API key found in either location
+        """
+        # Check environment variable first (more secure)
+        env_key = os.environ.get("ISEKAI_API_KEY", "").strip()
+
+        if env_key:
+            print("[Isekai] Using API key from ISEKAI_API_KEY environment variable")
+            return env_key
+
+        # Fall back to node input
+        if api_key_input and api_key_input.strip():
+            print("[Isekai] Using API key from node input (consider using ISEKAI_API_KEY env var instead)")
+            return api_key_input.strip()
+
+        # No API key found
+        raise IsekaiUploadError(
+            "No API key provided. Either:\n"
+            "1. Set ISEKAI_API_KEY environment variable (recommended), or\n"
+            "2. Enter API key in the node's api_key field"
+        )
+
     def _get_save_kwargs(self, format: str, quality: int) -> dict:
         """
         Get PIL Image.save() kwargs for compression based on format and quality.
@@ -115,8 +153,8 @@ class IsekaiUploadNode:
     def upload(
         self,
         image: torch.Tensor,
-        api_key: str,
         title: str,
+        api_key: str = "",
         tags: str = "",
         format: str = "JPEG",
         quality: int = 90
@@ -126,8 +164,8 @@ class IsekaiUploadNode:
 
         Args:
             image: ComfyUI IMAGE tensor [B,H,W,C], float32, range [0.0,1.0]
-            api_key: Isekai API key (format: isk_[64 hex characters])
             title: Upload title (max 200 characters, will be truncated if longer)
+            api_key: Isekai API key (optional, uses ISEKAI_API_KEY env var if empty)
             tags: Comma-separated tags (optional)
             format: Image format for upload ('JPEG' or 'PNG', default: 'JPEG')
             quality: Compression quality 1-100 (default: 90)
@@ -143,12 +181,16 @@ class IsekaiUploadNode:
         Example:
             >>> node = IsekaiUploadNode()
             >>> image_tensor = torch.rand(1, 512, 512, 3)
-            >>> result = node.upload(image_tensor, "isk_" + "a"*64, "My Image",
-            ...                      format="JPEG", quality=30)
+            >>> # Using environment variable (recommended)
+            >>> os.environ["ISEKAI_API_KEY"] = "isk_" + "a"*64
+            >>> result = node.upload(image_tensor, "My Image")
             >>> result[0] is image_tensor
             True
         """
         try:
+            # Get API key from environment variable or input
+            api_key = self._get_api_key(api_key)
+
             # Validate API key
             is_valid, error_msg = validate_api_key(api_key)
             if not is_valid:

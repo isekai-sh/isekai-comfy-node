@@ -10,7 +10,7 @@ Upload and compress AI-generated images and enhance your ComfyUI workflows with 
 
 **[📥 Download Latest Release](https://github.com/isekai-sh/isekai-comfy-node/releases/latest)**
 
-_Extract the ZIP file to `ComfyUI/custom_nodes/` and restart ComfyUI_
+Extract the ZIP file to `ComfyUI/custom_nodes/` and restart ComfyUI
 
 ## Features
 
@@ -68,6 +68,44 @@ _Extract the ZIP file to `ComfyUI/custom_nodes/` and restart ComfyUI_
 
 **Important:** Your API key is only shown once. Save it somewhere secure.
 
+## Setting Up API Key (Recommended Method)
+
+For security, it's recommended to use environment variables instead of entering your API key directly in the node.
+
+### Using Environment Variable (Secure)
+
+Set the `ISEKAI_API_KEY` environment variable before starting ComfyUI:
+
+**macOS/Linux:**
+
+```bash
+export ISEKAI_API_KEY=isk_your_api_key_here
+```
+
+**Windows (PowerShell):**
+
+```powershell
+$env:ISEKAI_API_KEY="isk_your_api_key_here"
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+set ISEKAI_API_KEY=isk_your_api_key_here
+```
+
+Then restart ComfyUI. The upload node will automatically use the environment variable.
+
+### Using Node Input (Fallback)
+
+If you don't set the environment variable, you can enter your API key directly in the node's `api_key` field. However, this method:
+
+- Exposes your API key in the node interface
+- Saves your API key in workflow JSON files
+- **Should not be used for workflows you plan to share publicly**
+
+The environment variable method is more secure and prevents accidental exposure.
+
 ## Node Documentation
 
 ### 1. Isekai Upload
@@ -79,8 +117,10 @@ Upload generated images directly to the Isekai platform.
 **Inputs:**
 
 - `image` (IMAGE, required): Image tensor from any image-producing node
-- `api_key` (STRING, required): Your Isekai API key (format: `isk_[64 hex chars]`)
 - `title` (STRING, required): Title for your artwork (max 200 characters, auto-truncated)
+- `api_key` (STRING, optional): Your Isekai API key (format: `isk_[64 hex chars]`)
+  - Leave empty to use `ISEKAI_API_KEY` environment variable (recommended)
+  - Only use this field if you haven't set the environment variable
 - `tags` (STRING, optional): Comma-separated tags (e.g., "fantasy, portrait, digital art")
 - `format` (DROPDOWN, optional): Image format - JPEG or PNG (default: JPEG)
 - `quality` (INT slider, optional): Compression quality 1-100 (default: 90)
@@ -384,6 +424,7 @@ Load Text ──→ text_content ──→ presets ┐
 ```
 
 Where `tag_presets.txt` contains:
+
 ```
 [Superman]
 hero, flying, dc, blue suit, red cape
@@ -559,12 +600,14 @@ Load text from a file and output it as a string using a dropdown selector or cus
 **How to Use:**
 
 **Method 1: Dropdown Selection (Recommended)**
+
 1. Place your text files in `ComfyUI/models/text_files/` directory
 2. Restart ComfyUI (or refresh node)
 3. Select file from the dropdown menu
 4. No path typing needed!
 
 **Method 2: Custom Path**
+
 1. Leave dropdown empty
 2. Enter absolute path in `custom_path` field:
    - **macOS/Linux**: `/Users/username/prompts/characters.txt`
@@ -691,31 +734,45 @@ Then restart ComfyUI.
 
 ## Error Messages
 
-| Error                    | Node   | Meaning                               | Solution                                                                      |
-| ------------------------ | ------ | ------------------------------------- | ----------------------------------------------------------------------------- |
-| "Invalid API key format" | Upload | API key doesn't match expected format | Check that your API key starts with `isk_` and has 64 hex characters after it |
-| "Authentication failed"  | Upload | API key is invalid or revoked         | Generate a new API key in Isekai dashboard                                    |
-| "Storage limit exceeded" | Upload | You've reached your storage quota     | Upgrade your subscription or delete old deviations                            |
-| "Rate limit exceeded"    | Upload | Too many uploads in short time        | Wait 15 minutes before uploading again (limit: 100 uploads per 15 minutes)    |
-| "Failed to connect"      | Upload | Network or API connection issue       | Check your internet connection and API URL configuration                      |
-| "Upload timed out"       | Upload | Request took longer than 60 seconds   | Check your network connection and try again                                   |
-| "Connection Failed"      | Ollama | Cannot reach Ollama server            | Start Ollama (`ollama serve`) and verify URL is correct                       |
-| "Untitled"               | Ollama | Empty input provided                  | Connect a non-empty text input to the node                                    |
+| Error                    | Node   | Meaning                               | Solution                                                                       |
+| ------------------------ | ------ | ------------------------------------- | ------------------------------------------------------------------------------ |
+| "No API key provided"    | Upload | API key not found in env var or input | Set `ISEKAI_API_KEY` environment variable or enter key in node's api_key field |
+| "Invalid API key format" | Upload | API key doesn't match expected format | Check that your API key starts with `isk_` and has 64 hex characters after it  |
+| "Authentication failed"  | Upload | API key is invalid or revoked         | Generate a new API key in Isekai dashboard                                     |
+| "Storage limit exceeded" | Upload | You've reached your storage quota     | Upgrade your subscription or delete old deviations                             |
+| "Rate limit exceeded"    | Upload | Too many uploads in short time        | Wait 15 minutes before uploading again (limit: 100 uploads per 15 minutes)     |
+| "Failed to connect"      | Upload | Network or API connection issue       | Check your internet connection and API URL configuration                       |
+| "Upload timed out"       | Upload | Request took longer than 60 seconds   | Check your network connection and try again                                    |
+| "Connection Failed"      | Ollama | Cannot reach Ollama server            | Start Ollama (`ollama serve`) and verify URL is correct                        |
+| "Untitled"               | Ollama | Empty input provided                  | Connect a non-empty text input to the node                                     |
 
 ## Security Notes
 
-**API Key Visibility:**
+**Recommended: Use Environment Variables**
 
-- Your API key is visible in the node interface
+The safest way to use your API key is through the `ISEKAI_API_KEY` environment variable:
+
+✅ **Advantages:**
+
+- API key is not visible in the node interface
+- API key is not saved in workflow JSON files
+- Workflows can be shared publicly without exposing credentials
+- Easier to manage and rotate keys
+
+❌ **Node Input Method (Not Recommended for Sharing):**
+
+- API key is visible in the node interface
 - API keys are saved in ComfyUI workflow JSON files
 - **Do not share workflow files publicly** if they contain your API key
-- Consider using different API keys for different purposes
+- Only use this method for private/local workflows
 
 **Best Practices:**
 
+- **Always use environment variables** when sharing workflows publicly
 - Revoke and regenerate API keys if they're accidentally exposed
 - Use descriptive names for your API keys (e.g., "ComfyUI - Personal Laptop")
 - Monitor your API key usage in the Isekai dashboard
+- Consider using different API keys for different purposes
 
 ## Troubleshooting
 
@@ -768,6 +825,42 @@ pip install -r requirements.txt
 1. Verify trigger word matches a key in presets (case-insensitive)
 2. Check preset format: each line should be "TriggerWord: tags, here"
 3. Ensure lines contain colon (`:`) separator
+
+### API Key Not Working / "No API key provided" Error
+
+1. **Check if environment variable is set:**
+
+   ```bash
+   # macOS/Linux
+   echo $ISEKAI_API_KEY
+
+   # Windows (PowerShell)
+   echo $env:ISEKAI_API_KEY
+
+   # Windows (Command Prompt)
+   echo %ISEKAI_API_KEY%
+   ```
+
+2. **If empty, set the environment variable:**
+
+   - Follow instructions in "Setting Up API Key" section
+   - Restart ComfyUI after setting the variable
+
+3. **Verify the key format:**
+
+   - Must start with `isk_`
+   - Must have 64 hexadecimal characters after the prefix
+   - Example: `isk_0123456789abcdef...` (total 68 characters)
+
+4. **Check console output:**
+
+   - Look for: `[Isekai] Using API key from ISEKAI_API_KEY environment variable`
+   - Or: `[Isekai] Using API key from node input`
+   - This tells you which method is being used
+
+5. **Fallback to node input:**
+   - If environment variable doesn't work, enter key directly in the node
+   - Make sure the `api_key` field is not empty
 
 ## Rate Limits
 
