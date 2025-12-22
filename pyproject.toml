@@ -1,7 +1,7 @@
 [project]
 name = "isekai-comfy-node"
 description = "Upload and compress AI-generated images and enhance your ComfyUI workflows with powerful string utilities and AI integration."
-version = "1.0.0"
+version = "1.2.2"
 license = {file = "LICENSE"} 
 # classifiers = [
 #     # For OS-independent nodes (works on all operating systems)
