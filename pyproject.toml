@@ -29,7 +29,7 @@ Documentation = "https://github.com/isekai-sh/isekai-comfy-node/wiki"
 "Bug Tracker" = "https://github.com/isekai-sh/isekai-comfy-node/issues"
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "isekai"
 DisplayName = "isekai-comfy-node"
 Icon = ""
 includes = [] 
