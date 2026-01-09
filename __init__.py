@@ -17,6 +17,7 @@ _NODE_DEFINITIONS = {
     "IsekaiOllamaSummarizer": ("IsekaiOllamaSummarizer", "Isekai Ollama Summarizer"),
     "IsekaiRoundRobin": ("IsekaiRoundRobin", "Isekai Round Robin"),
     "IsekaiLoadText": ("IsekaiLoadText", "Isekai Load Text"),
+    "IsekaiRandomLineFromFile": ("IsekaiRandomLineFromFile", "Isekai Random Line From File"),
     "IsekaiCompressAndSave": ("IsekaiCompressAndSave", "Isekai Compress and Save"),
 }
 

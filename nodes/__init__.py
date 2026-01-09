@@ -51,6 +51,12 @@ except ImportError:
     pass
 
 try:
+    from .random_from_file_node import IsekaiRandomLineFromFile
+    __all__.append("IsekaiRandomLineFromFile")
+except ImportError:
+    pass
+
+try:
     from .compress_and_save_node import IsekaiCompressAndSave
     __all__.append("IsekaiCompressAndSave")
 except ImportError:
