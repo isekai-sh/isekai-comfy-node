@@ -16,10 +16,13 @@ class IsekaiNodeBase(ABC):
     Attributes:
         CATEGORY: The category under which the node appears in ComfyUI
                   Subclasses should set specific categories like:
-                  - "Isekai/IO" for input/output nodes
-                  - "Isekai/Text" for text processing nodes
-                  - "Isekai/Analysis" for analysis and AI nodes
-                  - "Isekai/Batch" for batch processing nodes
+                  - "Isekai/Dataset" for text and batch processing nodes
+                  - "Isekai/Image/Blend" for blending and color adjustment
+                  - "Isekai/Image/Effects" for image effects and filters
+                  - "Isekai/Image/Transform" for geometric transformations
+                  - "Isekai/IO" for filesystem I/O nodes
+                  - "Isekai/LLMs" for LLM integration nodes
+                  - "Isekai/Upload" for upload/export nodes
     """
 
     # No default CATEGORY - subclasses must define their own specific category

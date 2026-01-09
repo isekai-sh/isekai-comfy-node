@@ -61,7 +61,7 @@ class IsekaiDynamicString:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("selected_string",)
     FUNCTION = "pick_random_line"
-    CATEGORY = "Isekai/Text"
+    CATEGORY = "Isekai/Dataset"
 
     def pick_random_line(self, text_list: str, seed: int) -> Tuple[str]:
         """

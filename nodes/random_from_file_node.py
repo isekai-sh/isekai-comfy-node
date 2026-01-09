@@ -68,7 +68,7 @@ class IsekaiRandomLineFromFile:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("random_line",)
     FUNCTION = "get_random_line"
-    CATEGORY = "Isekai/Text"
+    CATEGORY = "Isekai/IO"
 
     def get_random_line(self, file_name: str, seed: int) -> Tuple[str]:
         """

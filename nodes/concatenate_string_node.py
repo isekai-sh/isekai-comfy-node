@@ -63,7 +63,7 @@ class IsekaiConcatenateString:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("concatenated_string",)
     FUNCTION = "concatenate"
-    CATEGORY = "Isekai/Text"
+    CATEGORY = "Isekai/Dataset"
 
     def concatenate(
         self,

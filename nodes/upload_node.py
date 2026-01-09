@@ -54,6 +54,7 @@ class IsekaiUploadNode:
             - image: ComfyUI IMAGE tensor
             - title: Upload title (required, max 200 characters)
             - api_key: Isekai API key (optional, uses ISEKAI_API_KEY env var if not provided)
+            - api_url: Isekai API base URL (optional, uses ISEKAI_API_URL env var or defaults to https://api.isekai.sh)
             - tags: Comma-separated tags (optional)
             - format: Image format - JPEG or PNG (optional, default: JPEG)
             - quality: Compression quality 1-100 (optional, default: 90)
@@ -71,6 +72,11 @@ class IsekaiUploadNode:
                     "default": "",
                     "multiline": False,
                     "placeholder": "Leave empty to use ISEKAI_API_KEY environment variable"
+                }),
+                "api_url": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "placeholder": "https://your.isekai.run"
                 }),
                 "tags": ("STRING", {
                     "default": "",
@@ -92,7 +98,7 @@ class IsekaiUploadNode:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upload"
-    CATEGORY = "Isekai/IO"
+    CATEGORY = "Isekai/Upload"
     OUTPUT_NODE = True
 
     def _get_api_key(self, api_key_input: str = "") -> str:
@@ -131,6 +137,39 @@ class IsekaiUploadNode:
             "2. Enter API key in the node's api_key field"
         )
 
+    def _get_api_url(self, api_url_input: str = "") -> str:
+        """
+        Get API base URL from input, environment variable, or default.
+
+        Priority:
+        1. Node input api_url parameter (for flexibility with self-hosted instances)
+        2. Environment variable ISEKAI_API_URL (fallback)
+        3. Default URL https://api.isekai.sh (final fallback)
+
+        Args:
+            api_url_input: API URL from node input (optional)
+
+        Returns:
+            API base URL string (without trailing slash)
+        """
+        # Check node input first (allows per-workflow configuration)
+        if api_url_input and api_url_input.strip():
+            url = api_url_input.strip().rstrip('/')
+            print(f"[Isekai] Using API URL from node input: {url}")
+            return url
+
+        # Fall back to environment variable
+        env_url = os.environ.get("ISEKAI_API_URL", "").strip()
+        if env_url:
+            url = env_url.rstrip('/')
+            print(f"[Isekai] Using API URL from ISEKAI_API_URL environment variable: {url}")
+            return url
+
+        # Use default URL
+        url = get_api_url().rstrip('/')
+        print(f"[Isekai] Using default API URL: {url}")
+        return url
+
     def _get_save_kwargs(self, format: str, quality: int) -> dict:
         """
         Get PIL Image.save() kwargs for compression based on format and quality.
@@ -155,6 +194,7 @@ class IsekaiUploadNode:
         image: torch.Tensor,
         title: str,
         api_key: str = "",
+        api_url: str = "",
         tags: str = "",
         format: str = "JPEG",
         quality: int = 90
@@ -166,6 +206,7 @@ class IsekaiUploadNode:
             image: ComfyUI IMAGE tensor [B,H,W,C], float32, range [0.0,1.0]
             title: Upload title (max 200 characters, will be truncated if longer)
             api_key: Isekai API key (optional, uses ISEKAI_API_KEY env var if empty)
+            api_url: Isekai API base URL (optional, uses ISEKAI_API_URL env var or defaults to https://api.isekai.sh)
             tags: Comma-separated tags (optional)
             format: Image format for upload ('JPEG' or 'PNG', default: 'JPEG')
             quality: Compression quality 1-100 (default: 90)
@@ -190,6 +231,9 @@ class IsekaiUploadNode:
         try:
             # Get API key from environment variable or input
             api_key = self._get_api_key(api_key)
+
+            # Get API URL from node input, environment variable, or default
+            api_url = self._get_api_url(api_url)
 
             # Validate API key
             is_valid, error_msg = validate_api_key(api_key)
@@ -231,7 +275,7 @@ class IsekaiUploadNode:
 
             # Upload to Isekai
             print(f"[Isekai] Uploading '{sanitized_title}' to Isekai...")
-            result = self._upload_to_isekai(image_bytes, filename, api_key, metadata, format)
+            result = self._upload_to_isekai(image_bytes, filename, api_key, api_url, metadata, format)
 
             # Success message
             deviation_id = result.get("deviationId")
@@ -270,6 +314,7 @@ class IsekaiUploadNode:
         image_bytes: bytes,
         filename: str,
         api_key: str,
+        api_url: str,
         metadata: Dict[str, str],
         format: str = "PNG"
     ) -> Dict[str, Any]:
@@ -280,6 +325,7 @@ class IsekaiUploadNode:
             image_bytes: Image data as bytes
             filename: Filename for the upload
             api_key: Isekai API key
+            api_url: Isekai API base URL
             metadata: Dictionary containing title and tags
             format: Image format ('PNG' or 'JPEG')
 
@@ -289,7 +335,6 @@ class IsekaiUploadNode:
         Raises:
             IsekaiUploadError: If upload fails
         """
-        api_url = get_api_url()
         upload_url = f"{api_url}/api/comfyui/upload"
 
         # Determine content type based on format

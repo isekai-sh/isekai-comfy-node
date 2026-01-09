@@ -21,7 +21,17 @@ except (ImportError, AttributeError):
 
 # File-based state directory for append-only log in ComfyUI/temp
 _STATE_DIR = _TEMP_DIR / "isekai" / "round_robin"
-_STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+def _ensure_state_dir():
+    """Lazily create state directory when needed."""
+    global _STATE_DIR
+    if not _STATE_DIR.exists():
+        try:
+            _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            # If we can't create in the preferred location, use system temp
+            _STATE_DIR = Path(tempfile.gettempdir()) / "isekai" / "round_robin"
+            _STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class IsekaiRoundRobin:
@@ -90,7 +100,7 @@ class IsekaiRoundRobin:
     RETURN_TYPES = ("STRING", "STRING", "INT")
     RETURN_NAMES = ("selected_item", "progress_info", "batch_count_needed")
     FUNCTION = "cycle_items"
-    CATEGORY = "Isekai/Batch"
+    CATEGORY = "Isekai/Dataset"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -146,6 +156,7 @@ class IsekaiRoundRobin:
         # Simple append-only log file approach
         # Each execution reads last line, uses next index, appends new line
         # Log file is unique to this batch (batch_id)
+        _ensure_state_dir()
         log_file = _STATE_DIR / f"{batch_id}.log"
 
         # First execution: print helpful info

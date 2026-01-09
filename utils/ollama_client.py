@@ -44,7 +44,7 @@ def get_available_models(
     return default_models
 
 
-def generate_summary(
+def generate_text(
     text: str,
     model: str,
     base_url: str = "http://localhost:11434",
@@ -52,46 +52,40 @@ def generate_summary(
     timeout: int = 30
 ) -> Dict[str, Any]:
     """
-    Generate a text summary using Ollama.
+    Generate text using Ollama LLM.
 
     Args:
-        text: Text to summarize
+        text: Main prompt text to process
         model: Ollama model name to use
         base_url: Ollama server URL (default: "http://localhost:11434")
-        system_prompt: Optional system prompt to guide generation
+        system_prompt: Optional system prompt to guide generation (instructions for the LLM)
         timeout: Request timeout in seconds (default: 30)
 
     Returns:
         Dictionary containing:
         - success (bool): Whether the request succeeded
-        - text (str): Generated summary text or error message
+        - text (str): Generated text or error message
         - error (Optional[str]): Error message if failed
 
     Example:
-        >>> result = generate_summary("Long prompt text", "llama3")
+        >>> result = generate_text("Long prompt text", "llama3")
         >>> "text" in result and "success" in result
         True
     """
     if not text or not text.strip():
         return {
             "success": False,
-            "text": "Untitled",
+            "text": "",
             "error": "Input text is empty"
         }
 
     url = f"{base_url.rstrip('/')}/api/generate"
 
-    # Default system prompt for title generation if none provided
-    if system_prompt is None:
-        system_prompt = (
-            "You are a helpful assistant. "
-            "Summarize the following image prompt into a very short, one-line title following the format '[Character] [Action]'. "
-            "Be creative and concise. "
-            "Make it inspiring and catchy. "
-            "Do not add quotes. Do not add explanations. Keep it under 6 words."
-        )
-
-    full_prompt = f"{system_prompt}\n\nPrompt to summarize: {text}"
+    # Build the full prompt with optional system prompt
+    if system_prompt and system_prompt.strip():
+        full_prompt = f"{system_prompt}\n\n{text}"
+    else:
+        full_prompt = text
 
     payload = {
         "model": model,
@@ -118,7 +112,7 @@ def generate_summary(
         if not generated_text:
             return {
                 "success": False,
-                "text": "Untitled",
+                "text": "Error: Empty response",
                 "error": "Ollama returned empty response"
             }
 

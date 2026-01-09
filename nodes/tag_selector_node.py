@@ -77,7 +77,7 @@ class IsekaiTagSelector:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("selected_tags",)
     FUNCTION = "select_tags"
-    CATEGORY = "Isekai/Analysis"
+    CATEGORY = "Isekai/Dataset"
 
     def select_tags(
         self,
