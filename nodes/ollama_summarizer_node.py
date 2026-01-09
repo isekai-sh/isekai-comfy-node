@@ -69,7 +69,7 @@ class IsekaiOllamaSummarizer:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("title_summary",)
     FUNCTION = "summarize"
-    CATEGORY = "Isekai"
+    CATEGORY = "Isekai/Analysis"
 
     def summarize(
         self,

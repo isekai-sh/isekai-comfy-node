@@ -86,7 +86,7 @@ class IsekaiLoadText:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("text_content",)
     FUNCTION = "load_text"
-    CATEGORY = "Isekai"
+    CATEGORY = "Isekai/IO"
 
     def load_text(self, text_file: str = None, custom_path: str = "") -> Tuple[str]:
         """

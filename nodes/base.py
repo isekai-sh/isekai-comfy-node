@@ -14,10 +14,15 @@ class IsekaiNodeBase(ABC):
     across all Isekai nodes, including category naming and type specifications.
 
     Attributes:
-        CATEGORY: The category under which the node appears in ComfyUI (default: "Isekai")
+        CATEGORY: The category under which the node appears in ComfyUI
+                  Subclasses should set specific categories like:
+                  - "Isekai/IO" for input/output nodes
+                  - "Isekai/Text" for text processing nodes
+                  - "Isekai/Analysis" for analysis and AI nodes
+                  - "Isekai/Batch" for batch processing nodes
     """
 
-    CATEGORY: ClassVar[str] = "Isekai"
+    # No default CATEGORY - subclasses must define their own specific category
 
     @classmethod
     @abstractmethod

@@ -90,7 +90,7 @@ class IsekaiRoundRobin:
     RETURN_TYPES = ("STRING", "STRING", "INT")
     RETURN_NAMES = ("selected_item", "progress_info", "batch_count_needed")
     FUNCTION = "cycle_items"
-    CATEGORY = "Isekai"
+    CATEGORY = "Isekai/Batch"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

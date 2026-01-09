@@ -101,7 +101,7 @@ class IsekaiCompressAndSave:
 
     RETURN_TYPES = ()
     FUNCTION = "save_images"
-    CATEGORY = "Isekai"
+    CATEGORY = "Isekai/IO"
     OUTPUT_NODE = True
 
     def _get_save_kwargs(self, format: str, quality: int) -> dict:

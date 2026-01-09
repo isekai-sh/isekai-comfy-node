@@ -92,7 +92,7 @@ class IsekaiUploadNode:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upload"
-    CATEGORY = "Isekai"
+    CATEGORY = "Isekai/IO"
     OUTPUT_NODE = True
 
     def _get_api_key(self, api_key_input: str = "") -> str:

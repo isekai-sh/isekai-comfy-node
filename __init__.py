@@ -10,15 +10,15 @@ NODE_DISPLAY_NAME_MAPPINGS = {}
 
 # Define all possible nodes and their display names
 _NODE_DEFINITIONS = {
-    "IsekaiUpload": ("IsekaiUploadNode", "Isekai Upload"),
-    "IsekaiDynamicString": ("IsekaiDynamicString", "Isekai Dynamic String"),
-    "IsekaiConcatenateString": ("IsekaiConcatenateString", "Isekai Concatenate String"),
-    "IsekaiTagSelector": ("IsekaiTagSelector", "Isekai Tag Selector"),
-    "IsekaiOllamaSummarizer": ("IsekaiOllamaSummarizer", "Isekai Ollama Summarizer"),
-    "IsekaiRoundRobin": ("IsekaiRoundRobin", "Isekai Round Robin"),
-    "IsekaiLoadText": ("IsekaiLoadText", "Isekai Load Text"),
-    "IsekaiRandomLineFromFile": ("IsekaiRandomLineFromFile", "Isekai Random Line From File"),
-    "IsekaiCompressAndSave": ("IsekaiCompressAndSave", "Isekai Compress and Save"),
+    "IsekaiUpload": ("IsekaiUploadNode", "Upload"),
+    "IsekaiDynamicString": ("IsekaiDynamicString", "Dynamic String"),
+    "IsekaiConcatenateString": ("IsekaiConcatenateString", "Concatenate String"),
+    "IsekaiTagSelector": ("IsekaiTagSelector", "Tag Selector"),
+    "IsekaiOllamaSummarizer": ("IsekaiOllamaSummarizer", "Ollama Summarizer"),
+    "IsekaiRoundRobin": ("IsekaiRoundRobin", "Round Robin"),
+    "IsekaiLoadText": ("IsekaiLoadText", "Load Text"),
+    "IsekaiRandomLineFromFile": ("IsekaiRandomLineFromFile", "Random Line From File"),
+    "IsekaiCompressAndSave": ("IsekaiCompressAndSave", "Compress and Save"),
 }
 
 # Register nodes that successfully imported
