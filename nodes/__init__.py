@@ -253,6 +253,12 @@ try:
 except ImportError:
     pass
 
+try:
+    from .visual_qa_node import IsekaiVisualQA
+    __all__.append("IsekaiVisualQA")
+except ImportError as e:
+    print(f"[Isekai nodes] ✗ Failed to import IsekaiVisualQA: {e}")
+
 # ============================================================================
 # Upload Nodes
 # ============================================================================

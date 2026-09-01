@@ -9,9 +9,17 @@ from typing import Any, Dict, Tuple
 
 # Try relative imports first (production), fall back to absolute
 try:
-    from ..utils.ollama_client import generate_text, get_available_models
+    from ..utils.ollama_client import (
+        OLLAMA_RESPONSE_MODE_GENERAL,
+        OLLAMA_RESPONSE_MODE_OPTIONS,
+        generate_text,
+    )
 except (ImportError, ValueError):
-    from utils.ollama_client import generate_text, get_available_models
+    from utils.ollama_client import (
+        OLLAMA_RESPONSE_MODE_GENERAL,
+        OLLAMA_RESPONSE_MODE_OPTIONS,
+        generate_text,
+    )
 
 
 class IsekaiOllamaSummarizer:
@@ -40,19 +48,18 @@ class IsekaiOllamaSummarizer:
         """
         Define input parameters for the node.
 
-        Fetches available Ollama models dynamically at import time to populate
-        the model selection dropdown.
+        Accepts the model name as text so remote Ollama servers can be used.
+        The server URL is a separate runtime input and therefore cannot safely
+        populate a model dropdown while ComfyUI is validating the workflow.
 
         Returns:
             Dictionary containing required and optional input specifications:
             - prompt: Main text input to process (required)
-            - model: Ollama model selection dropdown (required)
+            - model: Ollama model name (required)
             - system_prompt: Instructions for the LLM (optional)
             - ollama_url: Ollama server URL (optional)
+            - response_mode: General or optimized short-response behavior (optional)
         """
-        # Fetch available models from Ollama
-        installed_models = get_available_models()
-
         return {
             "required": {
                 "prompt": ("STRING", {
@@ -60,7 +67,11 @@ class IsekaiOllamaSummarizer:
                     "multiline": True,
                     "placeholder": "Enter your prompt here..."
                 }),
-                "model": (installed_models,),
+                "model": ("STRING", {
+                    "default": "qwen3-vl:8b",
+                    "multiline": False,
+                    "placeholder": "qwen3-vl:8b"
+                }),
             },
             "optional": {
                 "system_prompt": ("STRING", {
@@ -72,6 +83,13 @@ class IsekaiOllamaSummarizer:
                     "default": "http://localhost:11434",
                     "multiline": False,
                     "placeholder": "http://localhost:11434"
+                }),
+                "response_mode": (OLLAMA_RESPONSE_MODE_OPTIONS, {
+                    "default": OLLAMA_RESPONSE_MODE_GENERAL,
+                    "tooltip": (
+                        "General preserves normal Ollama generation. Short response "
+                        "uses deterministic structured output with a 64-token limit."
+                    ),
                 }),
             }
         }
@@ -86,7 +104,8 @@ class IsekaiOllamaSummarizer:
         prompt: str,
         model: str,
         system_prompt: str = "",
-        ollama_url: str = "http://localhost:11434"
+        ollama_url: str = "http://localhost:11434",
+        response_mode: str = OLLAMA_RESPONSE_MODE_GENERAL,
     ) -> Tuple[str]:
         """
         Generate text using Ollama LLM based on the provided prompt.
@@ -96,6 +115,7 @@ class IsekaiOllamaSummarizer:
             model: Ollama model name to use for generation
             system_prompt: Optional instructions for the LLM (e.g., "Summarize this", "Translate to French")
             ollama_url: Ollama server URL (default: "http://localhost:11434")
+            response_mode: General generation or optimized short-response mode
 
         Returns:
             Tuple containing the generated response. Returns error messages if generation fails.
@@ -122,7 +142,8 @@ class IsekaiOllamaSummarizer:
             text=prompt,
             model=model,
             base_url=ollama_url,
-            system_prompt=system_prompt if system_prompt and system_prompt.strip() else None
+            system_prompt=system_prompt if system_prompt and system_prompt.strip() else None,
+            response_mode=response_mode,
         )
 
         # Check if generation was successful

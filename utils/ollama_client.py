@@ -2,8 +2,18 @@
 Ollama API client utilities for Isekai ComfyUI Custom Nodes
 """
 
+import json
+
 import requests
 from typing import List, Optional, Dict, Any
+
+
+OLLAMA_RESPONSE_MODE_GENERAL = "General"
+OLLAMA_RESPONSE_MODE_SHORT = "Short response"
+OLLAMA_RESPONSE_MODE_OPTIONS = [
+    OLLAMA_RESPONSE_MODE_GENERAL,
+    OLLAMA_RESPONSE_MODE_SHORT,
+]
 
 
 def get_available_models(
@@ -49,7 +59,8 @@ def generate_text(
     model: str,
     base_url: str = "http://localhost:11434",
     system_prompt: Optional[str] = None,
-    timeout: int = 30
+    timeout: int = 120,
+    response_mode: str = OLLAMA_RESPONSE_MODE_GENERAL,
 ) -> Dict[str, Any]:
     """
     Generate text using Ollama LLM.
@@ -59,7 +70,10 @@ def generate_text(
         model: Ollama model name to use
         base_url: Ollama server URL (default: "http://localhost:11434")
         system_prompt: Optional system prompt to guide generation (instructions for the LLM)
-        timeout: Request timeout in seconds (default: 30)
+        timeout: Request timeout in seconds (default: 120)
+        response_mode: ``General`` preserves Ollama's normal generation
+            behavior. ``Short response`` opts into deterministic structured
+            output tuned for short titles and similar one-line responses.
 
     Returns:
         Dictionary containing:
@@ -90,8 +104,28 @@ def generate_text(
     payload = {
         "model": model,
         "prompt": full_prompt,
-        "stream": False
+        "stream": False,
     }
+    short_response = response_mode == OLLAMA_RESPONSE_MODE_SHORT
+    if short_response:
+        response_schema = {
+            "type": "object",
+            "properties": {"response": {"type": "string"}},
+            "required": ["response"],
+            "additionalProperties": False,
+        }
+        payload.update({
+            "format": response_schema,
+            # Reasoning can consume thousands of invisible tokens for a title.
+            "think": False,
+            "keep_alive": "10m",
+            "options": {
+                "temperature": 0,
+                "seed": 0,
+                "num_ctx": 16384,
+                "num_predict": 64,
+            },
+        })
 
     try:
         response = requests.post(url, json=payload, timeout=timeout)
@@ -104,7 +138,20 @@ def generate_text(
             }
 
         result = response.json()
-        generated_text = result.get("response", "").strip()
+        raw_output = result.get("response", "")
+        if short_response and not raw_output:
+            # Qwen3-VL may put structured output in ``thinking`` despite
+            # receiving think=false. Limit this compatibility path to the
+            # explicitly structured short-response mode.
+            raw_output = result.get("thinking", "")
+        generated_text = raw_output.strip() if isinstance(raw_output, str) else ""
+        if short_response and generated_text:
+            try:
+                structured_output = json.loads(generated_text)
+            except (TypeError, json.JSONDecodeError):
+                structured_output = None
+            if isinstance(structured_output, dict):
+                generated_text = str(structured_output.get("response", "")).strip()
 
         # Clean up generated text
         generated_text = generated_text.replace('"', '').replace("'", "").replace("\n", " ")

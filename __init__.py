@@ -75,6 +75,7 @@ _NODE_DEFINITIONS = {
     "IsekaiGemini": ("IsekaiGemini", "Gemini"),
     "IsekaiOllamaSummarizer": ("IsekaiOllamaSummarizer", "Ollama"),
     "IsekaiOpenAI": ("IsekaiOpenAI", "OpenAI"),
+    "IsekaiVisualQA": ("IsekaiVisualQA", "Isekai Visual QA"),
     # Upload nodes
     "IsekaiS3Upload": ("IsekaiS3Upload", "Upload to S3"),
     "IsekaiUpload": ("IsekaiUploadNode", "Upload to Isekai"),

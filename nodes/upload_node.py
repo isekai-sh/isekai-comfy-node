@@ -25,6 +25,22 @@ except (ImportError, ValueError):
     from nodes.base import IsekaiUploadError
 
 
+SUBMISSION_POLICY_MANUAL_REVIEW = "Manual review"
+SUBMISSION_POLICY_DIRECT_TO_DRAFT = "Direct to draft"
+SUBMISSION_POLICY_USE_QA_DECISION = "Use QA decision"
+SUBMISSION_POLICY_OPTIONS = [
+    SUBMISSION_POLICY_MANUAL_REVIEW,
+    SUBMISSION_POLICY_DIRECT_TO_DRAFT,
+    SUBMISSION_POLICY_USE_QA_DECISION,
+]
+SUBMISSION_POLICY_VALUES = {
+    SUBMISSION_POLICY_MANUAL_REVIEW.casefold(): "manual_review",
+    SUBMISSION_POLICY_DIRECT_TO_DRAFT.casefold(): "direct_to_draft",
+    "manual_review": "manual_review",
+    "direct_to_draft": "direct_to_draft",
+}
+
+
 class IsekaiUploadNode:
     """
     ComfyUI custom node for uploading images to Isekai platform.
@@ -58,6 +74,8 @@ class IsekaiUploadNode:
             - tags: Comma-separated tags (optional)
             - format: Image format - JPEG or PNG (optional, default: JPEG)
             - quality: Compression quality 1-100 (optional, default: 90)
+            - submission_policy: Whether the upload requires manual review or goes directly to a draft
+            - qa_approved: Optional QA decision input used only by "Use QA decision"
         """
         return {
             "required": {
@@ -92,6 +110,16 @@ class IsekaiUploadNode:
                     "max": 100,
                     "step": 1,
                     "display": "slider"
+                }),
+                "submission_policy": (SUBMISSION_POLICY_OPTIONS, {
+                    "default": SUBMISSION_POLICY_MANUAL_REVIEW,
+                    "tooltip": "Manual review is the safe default. Direct to draft skips the review queue. Use QA decision follows the qa_approved input."
+                }),
+                # Append new inputs to preserve widget ordering in saved workflows.
+                "qa_approved": ("BOOLEAN", {
+                    "default": False,
+                    "forceInput": True,
+                    "tooltip": "Used only with Use QA decision. Missing or false keeps the upload in manual review."
                 }),
             }
         }
@@ -189,6 +217,33 @@ class IsekaiUploadNode:
         else:  # JPEG
             return {"quality": quality, "optimize": True}
 
+    def _get_review_policy(
+        self,
+        submission_policy: str = SUBMISSION_POLICY_MANUAL_REVIEW,
+        qa_approved: bool = False,
+    ) -> str:
+        """Convert the user-facing submission policy to its API wire value.
+
+        Missing and unknown values fail closed to manual review. This keeps
+        workflows saved before the widget existed backward compatible without
+        allowing them to bypass review accidentally.
+        """
+        normalized = str(submission_policy or "").strip().casefold()
+
+        if normalized == SUBMISSION_POLICY_USE_QA_DECISION.casefold():
+            return "direct_to_draft" if qa_approved is True else "manual_review"
+
+        review_policy = SUBMISSION_POLICY_VALUES.get(normalized)
+
+        if review_policy is None:
+            print(
+                f"[Isekai] Unknown submission policy '{submission_policy}'. "
+                "Falling back to Manual review."
+            )
+            return "manual_review"
+
+        return review_policy
+
     def upload(
         self,
         image: torch.Tensor,
@@ -197,7 +252,9 @@ class IsekaiUploadNode:
         api_url: str = "",
         tags: str = "",
         format: str = "JPEG",
-        quality: int = 90
+        quality: int = 90,
+        submission_policy: str = SUBMISSION_POLICY_MANUAL_REVIEW,
+        qa_approved: bool = False,
     ) -> Tuple[torch.Tensor]:
         """
         Upload image to Isekai platform with metadata and compression.
@@ -212,6 +269,8 @@ class IsekaiUploadNode:
             quality: Compression quality 1-100 (default: 90)
                     - For JPEG: Direct quality parameter (90 = excellent quality)
                     - For PNG: Mapped to compress_level (higher quality = less compression)
+            submission_policy: "Manual review" (default), "Direct to draft", or "Use QA decision"
+            qa_approved: QA decision for "Use QA decision"; missing/false defaults to manual review
 
         Returns:
             Tuple containing the input image unchanged (pass-through for preview)
@@ -248,6 +307,10 @@ class IsekaiUploadNode:
             if warning_msg:
                 print(f"[Isekai] Warning: {warning_msg}")
 
+            # Convert the UI label to the API wire value. Unknown values fail
+            # closed to manual review for backward compatibility and safety.
+            review_policy = self._get_review_policy(submission_policy, qa_approved)
+
             # Convert tensor to PIL Image
             print("[Isekai] Converting image tensor to PIL Image...")
             pil_image = tensor_to_pil(image)
@@ -271,10 +334,14 @@ class IsekaiUploadNode:
             metadata = {
                 "title": sanitized_title,
                 "tags": tags,
+                "reviewPolicy": review_policy,
             }
 
             # Upload to Isekai
-            print(f"[Isekai] Uploading '{sanitized_title}' to Isekai...")
+            print(
+                f"[Isekai] Uploading '{sanitized_title}' to Isekai "
+                f"with reviewPolicy={review_policy}..."
+            )
             result = self._upload_to_isekai(image_bytes, filename, api_key, api_url, metadata, format)
 
             # Success message
@@ -345,6 +412,8 @@ class IsekaiUploadNode:
         data = {
             "title": metadata["title"][:200],
             "isAiGenerated": "true",
+            # Default here as well so direct/internal callers remain safe.
+            "reviewPolicy": metadata.get("reviewPolicy", "manual_review"),
         }
 
         # Add tags if provided

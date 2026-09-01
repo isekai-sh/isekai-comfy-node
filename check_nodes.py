@@ -51,7 +51,13 @@ if hasattr(isekai_nodes, 'NODE_CLASS_MAPPINGS'):
             categories['Image/Transform'].append(key)
         elif 'Compress' in key or 'LoadText' in key or 'RandomLine' in key:
             categories['IO'].append(key)
-        elif 'Ollama' in key or 'OpenAI' in key or 'Claude' in key or 'Gemini' in key:
+        elif (
+            'Ollama' in key
+            or 'OpenAI' in key
+            or 'Claude' in key
+            or 'Gemini' in key
+            or 'VisualQA' in key
+        ):
             categories['LLMs'].append(key)
         elif 'Upload' in key or 'S3' in key:
             categories['Upload'].append(key)
@@ -66,15 +72,15 @@ if hasattr(isekai_nodes, 'NODE_CLASS_MAPPINGS'):
 
     print("\n" + "=" * 80)
 
-    if len(mappings) < 35:
-        print(f"⚠ WARNING: Expected 35 nodes, but only {len(mappings)} loaded!")
+    if len(mappings) < 36:
+        print(f"⚠ WARNING: Expected 36 nodes, but only {len(mappings)} loaded!")
         print("\nMissing image nodes? Check ComfyUI console for import errors.")
         print("Common issues:")
         print("  1. Missing dependencies (Pillow, numpy)")
         print("  2. Syntax errors in node files")
         print("  3. Import path issues")
     else:
-        print("✓ All 35 nodes loaded successfully!")
+        print("✓ All 36 nodes loaded successfully!")
 
     print("=" * 80)
 else:

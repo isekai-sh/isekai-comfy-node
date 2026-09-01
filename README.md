@@ -17,13 +17,14 @@ Transform and enhance your images with professional-grade effects and transforma
 - **Effects**: Blur, sharpen, grain, vignette, chromatic aberration, glare, edge enhancement, color filters, invert, posterize, pixelate
 - **Transformations**: Rotate, scale, crop, flip, translate, combined transforms
 
-### LLM Integrations (4 Nodes)
-Generate captions, titles, and descriptions using your preferred AI model.
+### LLM Integrations (5 Nodes)
+Generate captions, titles, descriptions, and local visual quality reports using your preferred AI model.
 
 - **Ollama**: Local LLM integration
 - **Claude**: Anthropic's Claude API
 - **OpenAI**: GPT models via OpenAI API
 - **Gemini**: Google's Gemini API
+- **Visual QA**: Local Qwen3-VL image review with a deterministic publication gate
 
 ### Dataset & String Utilities (4 Nodes)
 Powerful text manipulation for dynamic prompts and batch processing.
@@ -89,14 +90,64 @@ All nodes are organized alphabetically in the ComfyUI menu under the **Isekai** 
 - **Load Text**: Load text content from files
 - **Random Line From File**: Select random lines from text files
 
-### LLMs (4 nodes)
+### LLMs (5 nodes)
 - **Claude**: Generate text using Anthropic's Claude API
 - **Gemini**: Generate text using Google's Gemini API
 - **Ollama**: Generate text using local Ollama models
 - **OpenAI**: Generate text using OpenAI's GPT models
+- **Isekai Visual QA**: Review anatomy and generation artifacts locally with Qwen3-VL
+
+#### Ollama response modes
+
+The Ollama node defaults to **General**, which preserves Ollama's normal text
+generation behavior. Select **Short response** for titles and similar one-line
+outputs. That opt-in mode requests a one-field JSON response, disables model
+thinking, uses deterministic generation with a 64-token cap and 16,384-token
+context, and keeps the model loaded in Ollama for 10 minutes.
+
+#### Isekai Visual QA
+
+`Isekai Visual QA` sends each input image to a local Ollama multimodal model and
+passes the original `IMAGE` through unchanged. Install the default model before
+using the node:
+
+```bash
+ollama pull qwen3-vl:8b
+```
+
+The node returns `approved`, `score`, and a machine-readable `report_json`. It
+keeps Qwen's raw estimate as diagnostic `model_score`, but computes the gate
+score locally: start at 100, subtract 25 per major issue and 5 per minor issue,
+and force zero for any blocking issue. For a batch, the lowest local score must
+meet `approval_threshold`, and every image must contain zero blocking issues.
+Inference and malformed-response errors fail closed with
+`approved = false` and an `inference_error` blocking issue.
+
+The node sends the full frame and four quadrant detail crops together in one
+Ollama request, so small hands and faces remain inspectable in large outputs.
+It requests a 16,384-token model context for these five views. Crop boundaries
+are not treated as defects. Ollama keeps Qwen loaded for 10 minutes after each
+response to avoid repeated model reloads. This works best with a dedicated or
+remote Ollama GPU; when Ollama shares ComfyUI's GPU, the model can retain VRAM
+until the keepalive expires or you run `ollama stop qwen3-vl:8b`. The default
+rubric checks malformed hands, fingers, faces and body anatomy; duplication and
+impossible merges; unintended text or watermarks; broken edges, seams, tiling,
+halos, banding, noise, and upscale artifacts; and composition and finish. It is
+a technical-quality gate only: subject matter, mature content, artistic taste,
+and intentional stylization are outside its scope. You can replace the rubric
+per workflow. Enable `unload_comfy_models` to release ComfyUI model memory
+before Ollama inference; unload failures are reported as runtime warnings and
+do not hide the QA result.
 
 ### Upload (2 nodes)
-- **Upload to Isekai**: Upload images to Isekai platform
+- **Upload to Isekai**: Upload images to Isekai platform. Choose **Manual review**
+  (the safe default) to place the job in the review queue, or **Direct to draft**
+  to send it directly to draft creation. **Use QA decision** follows a connected
+  `qa_approved` Boolean and goes directly to draft only when it is literally
+  `true`; missing, false, or invalid values fail closed to manual review.
+  Existing workflows that do not contain this setting continue to use manual
+  review. The node sends the result as the multipart `reviewPolicy` field
+  (`manual_review` or `direct_to_draft`).
 - **Upload to S3**: Upload to AWS S3 or Cloudflare R2
 
 ## Installation
@@ -146,6 +197,7 @@ isekai-comfy-node/
 │   ├── gemini_node.py       # Gemini API integration
 │   ├── openai_node.py       # OpenAI API integration
 │   ├── ollama_summarizer_node.py
+│   ├── visual_qa_node.py       # Local multimodal visual quality gate
 │   │
 │   ├── dynamic_string_node.py
 │   ├── concatenate_string_node.py
@@ -165,6 +217,7 @@ isekai-comfy-node/
     ├── image_utils.py       # Image tensor/PIL conversion
     ├── cloud_llm_client.py  # Claude/OpenAI/Gemini client
     ├── ollama_client.py     # Ollama API client
+    ├── ollama_vision_client.py # Structured Ollama vision client
     └── s3_client.py         # AWS S3/R2 client
 ```
 
