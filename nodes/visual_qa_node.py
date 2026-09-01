@@ -39,6 +39,8 @@ Blocking issues include a broken primary face or hands, severe anatomy failure, 
 
 Judge technical image quality only. Do not reject subject matter, mature content, artistic taste, or intentional stylization."""
 
+QA_VIEW_MAX_EDGE = 1024
+
 
 def _try_unload_comfy_models() -> List[str]:
     """Best-effort VRAM release without making QA depend on Comfy internals."""
@@ -66,11 +68,24 @@ def _batch_images(image: torch.Tensor) -> List[torch.Tensor]:
     raise ValueError("IMAGE input must have shape [H,W,C] or non-empty [B,H,W,C].")
 
 
+def _fit_qa_view(pil_image: Any) -> Any:
+    """Bound a QA view so five-view requests fit the configured model context."""
+    view = pil_image.copy()
+    if max(view.size) > QA_VIEW_MAX_EDGE:
+        from PIL import Image
+
+        view.thumbnail(
+            (QA_VIEW_MAX_EDGE, QA_VIEW_MAX_EDGE),
+            Image.Resampling.LANCZOS,
+        )
+    return view
+
+
 def _qa_image_views(pil_image: Any) -> List[BytesIO]:
-    """Encode the full frame and four quadrants for one multimodal request."""
+    """Encode a bounded full frame and four bounded quadrant detail crops."""
     width, height = pil_image.size
     if width < 2 or height < 2:
-        return [pil_to_bytes(pil_image, format="PNG", optimize=True)]
+        return [pil_to_bytes(_fit_qa_view(pil_image), format="PNG", optimize=True)]
 
     split_x = width // 2
     split_y = height // 2
@@ -80,7 +95,9 @@ def _qa_image_views(pil_image: Any) -> List[BytesIO]:
         (0, split_y, split_x, height),
         (split_x, split_y, width, height),
     ]
-    views = [pil_image] + [pil_image.crop(box) for box in boxes]
+    views = [_fit_qa_view(pil_image)] + [
+        _fit_qa_view(pil_image.crop(box)) for box in boxes
+    ]
     return [pil_to_bytes(view, format="PNG", optimize=True) for view in views]
 
 

@@ -125,7 +125,8 @@ Inference and malformed-response errors fail closed with
 
 The node sends the full frame and four quadrant detail crops together in one
 Ollama request, so small hands and faces remain inspectable in large outputs.
-It requests a 16,384-token model context for these five views. Crop boundaries
+Each view is capped at a 1024-pixel longest edge to keep different image aspect
+ratios reliably inside the 16,384-token model context. Crop boundaries
 are not treated as defects. Ollama keeps Qwen loaded for 10 minutes after each
 response to avoid repeated model reloads. This works best with a dedicated or
 remote Ollama GPU; when Ollama shares ComfyUI's GPU, the model can retain VRAM

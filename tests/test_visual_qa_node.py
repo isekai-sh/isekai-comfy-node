@@ -56,6 +56,17 @@ class IsekaiVisualQATests(unittest.TestCase):
 
         self.assertEqual(sizes, [(10, 8), (5, 4), (5, 4), (5, 4), (5, 4)])
 
+    def test_large_views_are_bounded_without_dropping_detail_crops(self) -> None:
+        image = Image.new("RGB", (4096, 4096), "white")
+
+        views = _qa_image_views(image)
+        sizes = []
+        for view in views:
+            with Image.open(view) as encoded_image:
+                sizes.append(encoded_image.size)
+
+        self.assertEqual(sizes, [(1024, 1024)] * 5)
+
     def test_approves_at_threshold_with_no_blockers(self) -> None:
         result, evaluate_image = self.evaluate(
             report(score=80), approval_threshold=80, unload_comfy_models=False
