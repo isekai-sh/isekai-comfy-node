@@ -23,7 +23,7 @@ jobs:
       - name: Create release package
         run: |
           mkdir -p release/isekai-comfy-node
-          cp -r nodes utils __init__.py config.py README.md requirements.txt release/isekai-comfy-node/
+          cp -r nodes utils __init__.py config.py README.md LICENSE requirements.txt release/isekai-comfy-node/
           cd release
           zip -r ../isekai-comfy-node-v${{ steps.version.outputs.VERSION }}.zip isekai-comfy-node
 
