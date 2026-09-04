@@ -121,6 +121,16 @@ class IsekaiUploadNode:
                     "forceInput": True,
                     "tooltip": "Used only with Use QA decision. Missing or false keeps the upload in manual review."
                 }),
+                "generation_run_id": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Injected by Isekai Core for managed generation runs."
+                }),
+                "generation_output_key": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Injected by Isekai Core to make the upload idempotent."
+                }),
             }
         }
 
@@ -221,6 +231,8 @@ class IsekaiUploadNode:
         self,
         submission_policy: str = SUBMISSION_POLICY_MANUAL_REVIEW,
         qa_approved: bool = False,
+        generation_run_id: str = "",
+        generation_output_key: str = "",
     ) -> str:
         """Convert the user-facing submission policy to its API wire value.
 
@@ -271,6 +283,8 @@ class IsekaiUploadNode:
                     - For PNG: Mapped to compress_level (higher quality = less compression)
             submission_policy: "Manual review" (default), "Direct to draft", or "Use QA decision"
             qa_approved: QA decision for "Use QA decision"; missing/false defaults to manual review
+            generation_run_id: Core-managed run identifier (normally injected automatically)
+            generation_output_key: Core-managed idempotency key (normally injected automatically)
 
         Returns:
             Tuple containing the input image unchanged (pass-through for preview)
@@ -335,6 +349,8 @@ class IsekaiUploadNode:
                 "title": sanitized_title,
                 "tags": tags,
                 "reviewPolicy": review_policy,
+                "generationRunId": generation_run_id.strip(),
+                "generationOutputKey": generation_output_key.strip(),
             }
 
             # Upload to Isekai
@@ -421,6 +437,11 @@ class IsekaiUploadNode:
             tags_list = [t.strip() for t in metadata["tags"].split(",") if t.strip()]
             if tags_list:
                 data["tags"] = json.dumps(tags_list)
+
+        if metadata.get("generationRunId"):
+            data["generationRunId"] = metadata["generationRunId"]
+        if metadata.get("generationOutputKey"):
+            data["generationOutputKey"] = metadata["generationOutputKey"]
 
         try:
             response = requests.post(

@@ -28,6 +28,8 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
                 "quality",
                 "submission_policy",
                 "qa_approved",
+                "generation_run_id",
+                "generation_output_key",
             ],
         )
         options, config = optional_inputs["submission_policy"]
@@ -57,7 +59,7 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
         )
         self.assertEqual(
             list(signature(IsekaiUploadNode.upload).parameters)[-1],
-            "qa_approved",
+            "generation_output_key",
         )
 
     def test_policy_labels_map_to_wire_values(self):
@@ -180,6 +182,33 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
         self.assertEqual(
             post.call_args.kwargs["data"]["reviewPolicy"],
             "direct_to_draft",
+        )
+
+    @patch("nodes.upload_node.requests.post")
+    def test_multipart_request_includes_generation_correlation(self, post: Mock):
+        response = Mock(status_code=200)
+        response.json.return_value = {"status": "draft"}
+        post.return_value = response
+
+        self.node._upload_to_isekai(
+            image_bytes=b"image",
+            filename="test.png",
+            api_key="test-key",
+            api_url="https://isekai.example",
+            metadata={
+                "title": "Test",
+                "tags": "",
+                "reviewPolicy": "direct_to_draft",
+                "generationRunId": "run-1",
+                "generationOutputKey": "run-1:0",
+            },
+            format="PNG",
+        )
+
+        self.assertEqual(post.call_args.kwargs["data"]["generationRunId"], "run-1")
+        self.assertEqual(
+            post.call_args.kwargs["data"]["generationOutputKey"],
+            "run-1:0",
         )
 
     @patch("nodes.upload_node.requests.post")

@@ -149,6 +149,8 @@ do not hide the QA result.
   Existing workflows that do not contain this setting continue to use manual
   review. The node sends the result as the multipart `reviewPolicy` field
   (`manual_review` or `direct_to_draft`).
+  Workflows dispatched by Isekai Core also receive managed run and output IDs;
+  the node returns those IDs with the upload so retries remain idempotent.
 - **Upload to S3**: Upload to AWS S3 or Cloudflare R2
 
 ## Installation
