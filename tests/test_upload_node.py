@@ -128,6 +128,35 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
     @patch("nodes.upload_node.tensor_to_pil", return_value=Mock())
     @patch("nodes.upload_node.validate_title", return_value=(True, "Test", ""))
     @patch("nodes.upload_node.validate_api_key", return_value=(True, ""))
+    def test_upload_accepts_generation_correlation_inputs(
+        self,
+        _validate_api_key: Mock,
+        _validate_title: Mock,
+        _tensor_to_pil: Mock,
+        _pil_to_bytes: Mock,
+    ):
+        self.node._get_api_key = Mock(return_value="test-key")
+        self.node._get_api_url = Mock(return_value="https://isekai.example")
+        self.node._generate_filename = Mock(return_value="test.png")
+        self.node._upload_to_isekai = Mock(
+            return_value={"status": "queued", "deviationId": "test"}
+        )
+
+        self.node.upload(
+            image=Mock(),
+            title="Test",
+            generation_run_id="run-1",
+            generation_output_key="run-1:0",
+        )
+
+        metadata = self.node._upload_to_isekai.call_args.args[4]
+        self.assertEqual(metadata["generationRunId"], "run-1")
+        self.assertEqual(metadata["generationOutputKey"], "run-1:0")
+
+    @patch("nodes.upload_node.pil_to_bytes", return_value=BytesIO(b"image"))
+    @patch("nodes.upload_node.tensor_to_pil", return_value=Mock())
+    @patch("nodes.upload_node.validate_title", return_value=(True, "Test", ""))
+    @patch("nodes.upload_node.validate_api_key", return_value=(True, ""))
     def test_upload_uses_qa_decision_before_request(
         self,
         _validate_api_key: Mock,

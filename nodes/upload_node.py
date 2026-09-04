@@ -231,8 +231,6 @@ class IsekaiUploadNode:
         self,
         submission_policy: str = SUBMISSION_POLICY_MANUAL_REVIEW,
         qa_approved: bool = False,
-        generation_run_id: str = "",
-        generation_output_key: str = "",
     ) -> str:
         """Convert the user-facing submission policy to its API wire value.
 
@@ -267,6 +265,8 @@ class IsekaiUploadNode:
         quality: int = 90,
         submission_policy: str = SUBMISSION_POLICY_MANUAL_REVIEW,
         qa_approved: bool = False,
+        generation_run_id: str = "",
+        generation_output_key: str = "",
     ) -> Tuple[torch.Tensor]:
         """
         Upload image to Isekai platform with metadata and compression.
