@@ -109,11 +109,12 @@ context, and keeps the model loaded in Ollama for 10 minutes.
 
 `Isekai Visual QA` passes the original `IMAGE` through unchanged and reviews it
 through OpenRouter by default. Configure `OPENROUTER_API_KEY` in the ComfyUI
-service environment. The default paid reviewer is `qwen/qwen3.8-flash`; the
-free `google/gemma-4-31b-it:free` reviewer acts as an agreement gate. A valid
-rejection from either model fails the image. If the optional free endpoint is
-unavailable, Qwen's decision stands and the outage is recorded in
-`report_json`.
+service environment. The default paid reviewer is `qwen/qwen3.8-flash`, with
+paid `google/gemma-4-31b-it` as an automatic provider-outage or rate-limit
+fallback. The free `google/gemma-4-31b-it:free` reviewer then acts as an
+agreement gate. A valid rejection from either review fails the image. If the
+optional free endpoint is unavailable, the paid primary decision stands and
+the outage is recorded in `report_json`.
 
 Connect the workflow's final positive prompt to `generation_prompt`. The review
 then checks only the operational requirements: a visible, readable primary

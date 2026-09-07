@@ -13,12 +13,14 @@ from utils.openrouter_vision_client import (
 )
 
 
-def response(decision, usage=None):
+def response(decision, usage=None, model=None):
     result = {
         "choices": [{"message": {"content": json.dumps(decision)}}],
     }
     if usage is not None:
         result["usage"] = usage
+    if model is not None:
+        result["model"] = model
     mock = Mock(status_code=200)
     mock.json.return_value = result
     return mock
@@ -35,7 +37,11 @@ class OpenRouterVisionClientTests(unittest.TestCase):
     @patch("utils.openrouter_vision_client.requests.post")
     def test_primary_and_free_secondary_must_both_pass(self, post: Mock) -> None:
         post.side_effect = [
-            response({"pass": True, "reasons": []}, {"prompt_tokens": 10, "completion_tokens": 4}),
+            response(
+                {"pass": True, "reasons": []},
+                {"prompt_tokens": 10, "completion_tokens": 4},
+                "qwen/qwen3.8-flash",
+            ),
             response({"pass": False, "reasons": [{"text": "The left arm is duplicated."}]}),
         ]
 
@@ -52,7 +58,10 @@ class OpenRouterVisionClientTests(unittest.TestCase):
         self.assertEqual(report["blocking_issues"][0]["reviewer"], "secondary")
 
         primary_payload = post.call_args_list[0].kwargs["json"]
-        self.assertEqual(primary_payload["model"], "qwen/qwen3.8-flash")
+        self.assertEqual(
+            primary_payload["models"],
+            ["qwen/qwen3.8-flash", "google/gemma-4-31b-it"],
+        )
         self.assertEqual(
             primary_payload["response_format"]["json_schema"]["schema"],
             QA_SCHEMA,
@@ -60,6 +69,7 @@ class OpenRouterVisionClientTests(unittest.TestCase):
         self.assertEqual(primary_payload["reasoning"], {"effort": "none"})
         self.assertEqual(primary_payload["max_tokens"], 192)
         self.assertTrue(primary_payload["provider"]["require_parameters"])
+        self.assertEqual(report["primary"]["resolved_model"], "qwen/qwen3.8-flash")
         content = primary_payload["messages"][1]["content"]
         self.assertIn("one woman holding a sword", content[0]["text"])
         encoded = [part["image_url"]["url"].split(",", 1)[1] for part in content[1:]]

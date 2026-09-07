@@ -10,6 +10,7 @@ import requests
 
 
 DEFAULT_OPENROUTER_MODEL = "qwen/qwen3.8-flash"
+DEFAULT_PRIMARY_FALLBACK_MODEL = "google/gemma-4-31b-it"
 DEFAULT_SECONDARY_MODEL = "google/gemma-4-31b-it:free"
 ImageBytes = Union[bytes, bytearray, BytesIO]
 
@@ -139,6 +140,7 @@ def _review(
     api_key: str,
     strict_schema: bool,
     timeout: int,
+    fallback_models: Sequence[str] = (),
 ) -> Dict[str, Any]:
     system_prompt = (
         "You are a binary quality-control reviewer for generated character artwork. "
@@ -162,8 +164,8 @@ def _review(
     else:
         response_format = {"type": "json_object"}
 
+    models = list(dict.fromkeys([model, *[value for value in fallback_models if value]]))
     payload = {
-        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {
@@ -177,6 +179,10 @@ def _review(
         "max_tokens": 192,
         "stream": False,
     }
+    if len(models) > 1:
+        payload["models"] = models
+    else:
+        payload["model"] = model
     if strict_schema:
         payload["provider"] = {"require_parameters": True}
 
@@ -203,7 +209,12 @@ def _review(
         try:
             body = response.json()
             error = body.get("error") if isinstance(body, dict) else None
-            detail = error.get("message") if isinstance(error, dict) else error
+            if isinstance(error, dict):
+                metadata = error.get("metadata")
+                detail = metadata.get("raw") if isinstance(metadata, dict) else None
+                detail = detail or error.get("message")
+            else:
+                detail = error
         except (ValueError, AttributeError):
             detail = None
         detail = str(detail or f"HTTP {response.status_code}")[:500]
@@ -217,6 +228,9 @@ def _review(
         raise OpenRouterVisionError("OpenRouter HTTP response must be a JSON object.")
 
     decision = _normalize_decision(_extract_json_object(_message_text(response_data)))
+    resolved_model = response_data.get("model")
+    if isinstance(resolved_model, str) and resolved_model.strip():
+        decision["resolved_model"] = resolved_model.strip()
     usage = response_data.get("usage")
     if isinstance(usage, dict):
         decision["usage"] = {
@@ -252,7 +266,15 @@ def evaluate_image_with_openrouter(
         raise OpenRouterVisionError("OPENROUTER_API_KEY is not configured for ComfyUI.")
 
     primary = _review(
-        image_bytes, model, rubric, generation_prompt, base_url, api_key, True, timeout
+        image_bytes,
+        model,
+        rubric,
+        generation_prompt,
+        base_url,
+        api_key,
+        True,
+        timeout,
+        (DEFAULT_PRIMARY_FALLBACK_MODEL,),
     )
     secondary = None
     warnings: List[str] = []
