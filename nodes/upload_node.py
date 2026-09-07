@@ -39,6 +39,9 @@ SUBMISSION_POLICY_VALUES = {
     "manual_review": "manual_review",
     "direct_to_draft": "direct_to_draft",
 }
+QA_UNAVAILABLE_REASON = (
+    "Automated QA could not complete the review. Please review this image manually."
+)
 
 
 class IsekaiUploadNode:
@@ -283,9 +286,13 @@ class IsekaiUploadNode:
                 text = str(issue.get("description") or issue.get("text") or "").strip()
                 if not text:
                     continue
-                reason = {"text": text[:500]}
                 category = str(issue.get("category") or "").strip()
                 location = str(issue.get("location") or "").strip()
+                if category.casefold() == "inference_error":
+                    text = QA_UNAVAILABLE_REASON
+                    category = "qa_unavailable"
+                    location = ""
+                reason = {"text": text[:500]}
                 if category:
                     reason["category"] = category[:100]
                 if location:

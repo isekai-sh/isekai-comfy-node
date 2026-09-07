@@ -105,6 +105,17 @@ class OpenRouterVisionClientTests(unittest.TestCase):
         self.assertIsNone(report["secondary"])
 
     @patch("utils.openrouter_vision_client.requests.post")
+    def test_accepts_single_object_array_from_provider(self, post: Mock) -> None:
+        post.return_value = response(
+            [{"pass": False, "reasons": [{"text": "The face is obscured."}]}]
+        )
+
+        report = evaluate_image_with_openrouter(b"image", rubric="rubric", secondary_model="")
+
+        self.assertEqual(report["score"], 0)
+        self.assertEqual(report["blocking_issues"][0]["description"], "The face is obscured.")
+
+    @patch("utils.openrouter_vision_client.requests.post")
     def test_rejects_inconsistent_compact_json(self, post: Mock) -> None:
         post.return_value = response({"pass": True, "reasons": [{"text": "bad hand"}]})
 

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from nodes.upload_node import (
     IsekaiUploadNode,
+    QA_UNAVAILABLE_REASON,
     SUBMISSION_POLICY_DIRECT_TO_DRAFT,
     SUBMISSION_POLICY_MANUAL_REVIEW,
     SUBMISSION_POLICY_USE_QA_DECISION,
@@ -98,6 +99,30 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
             },
         )
         self.assertNotIn("final_prompt", summary)
+
+    def test_inference_failure_is_not_exposed_as_a_review_reason(self):
+        internal_error = "OpenRouter visual QA response must be a JSON object."
+        report = json.dumps(
+            {
+                "approved": False,
+                "score": 0,
+                "blocking_issues": [
+                    {
+                        "category": "inference_error",
+                        "description": internal_error,
+                        "location": "visual_qa",
+                    }
+                ],
+            }
+        )
+
+        summary = json.loads(self.node._summarize_qa_report(report, False))
+
+        self.assertEqual(
+            summary["reasons"],
+            [{"text": QA_UNAVAILABLE_REASON, "category": "qa_unavailable"}],
+        )
+        self.assertNotIn(internal_error, json.dumps(summary))
 
     def test_policy_labels_map_to_wire_values(self):
         self.assertEqual(

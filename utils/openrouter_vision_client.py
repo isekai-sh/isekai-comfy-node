@@ -82,6 +82,12 @@ def _extract_json_object(content: str) -> Dict[str, Any]:
         except json.JSONDecodeError as exc:
             raise OpenRouterVisionError("OpenRouter returned malformed visual QA JSON.") from exc
 
+    # Some OpenRouter providers wrap a schema-conforming object in a
+    # single-element array despite the requested object response format.
+    # Accept only that unambiguous shape; multiple decisions remain invalid.
+    if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+        parsed = parsed[0]
+
     if not isinstance(parsed, dict):
         raise OpenRouterVisionError("OpenRouter visual QA response must be a JSON object.")
     return parsed
