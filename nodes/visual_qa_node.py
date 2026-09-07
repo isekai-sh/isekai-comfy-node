@@ -1,4 +1,4 @@
-"""ComfyUI node for deterministic, local multimodal visual QA."""
+"""ComfyUI node for multimodal visual QA through Ollama or OpenRouter."""
 
 import json
 from io import BytesIO
@@ -12,32 +12,32 @@ try:
         DEFAULT_VISION_MODEL,
         evaluate_image_with_ollama,
     )
+    from ..utils.openrouter_vision_client import (
+        DEFAULT_OPENROUTER_MODEL,
+        DEFAULT_SECONDARY_MODEL,
+        evaluate_image_with_openrouter,
+    )
 except (ImportError, ValueError):
     from utils.image_utils import pil_to_bytes, tensor_to_pil
     from utils.ollama_vision_client import (
         DEFAULT_VISION_MODEL,
         evaluate_image_with_ollama,
     )
+    from utils.openrouter_vision_client import (
+        DEFAULT_OPENROUTER_MODEL,
+        DEFAULT_SECONDARY_MODEL,
+        evaluate_image_with_openrouter,
+    )
 
 
 DEFAULT_VISUAL_QA_RUBRIC = """Evaluate whether this AI-generated artwork is ready to publish.
 
-Anatomy:
-- Check hands and fingers for wrong counts, fused digits, malformed joints, or impossible grips.
-- Check limbs, shoulders, torso, neck, ears, eyes, teeth, and facial symmetry for distortion.
-- Check body proportions, pose continuity, duplicated anatomy, and impossible merges or intersections.
+Pass only when:
+- The primary subject has a clearly visible, readable face.
+- There is no obvious bad anatomy, such as malformed or duplicated limbs, hands, fingers, facial features, or impossible body connections.
+- The subject, action, setting, and major requested elements are coherent with the final generation prompt.
 
-Artifacts:
-- Check for duplicated or missing features, warped geometry, floating objects, accidental cutoffs, and broken edges.
-- Check for unintended text, signatures, watermarks, UI fragments, seams, tiling, halos, banding, noise, and upscale or compression artifacts.
-- Check detailed backgrounds and accessories for melting, repetition, or inconsistent perspective.
-
-Composition and finish:
-- Check subject legibility, crop, focus, exposure, contrast, color consistency, and obviously unfinished regions.
-
-Blocking issues include a broken primary face or hands, severe anatomy failure, prominent unintended text or watermark, major duplication or merging, or corrupted or blank output.
-
-Judge technical image quality only. Do not reject subject matter, mature content, artistic taste, or intentional stylization."""
+Ignore style preferences, tiny background defects, and minor details that do not harm the subject. Do not reject mature content or intentional stylization."""
 
 QA_VIEW_MAX_EDGE = 1024
 
@@ -102,7 +102,7 @@ def _qa_image_views(pil_image: Any) -> List[BytesIO]:
 
 
 class IsekaiVisualQA:
-    """Review generated images locally and return a deterministic publish gate."""
+    """Review generated images and return a backward-compatible publish gate."""
 
     @classmethod
     def INPUT_TYPES(cls) -> Dict[str, Any]:
@@ -110,13 +110,14 @@ class IsekaiVisualQA:
             "required": {
                 "image": ("IMAGE",),
                 "model": ("STRING", {
-                    "default": DEFAULT_VISION_MODEL,
+                    "default": DEFAULT_OPENROUTER_MODEL,
                     "multiline": False,
-                    "placeholder": "qwen3-vl:8b",
+                    "placeholder": DEFAULT_OPENROUTER_MODEL,
                 }),
                 "ollama_url": ("STRING", {
-                    "default": "http://localhost:11434",
+                    "default": "https://openrouter.ai/api/v1",
                     "multiline": False,
+                    "tooltip": "OpenRouter API base URL, or an Ollama URL for legacy local QA.",
                 }),
                 "rubric": ("STRING", {
                     "default": DEFAULT_VISUAL_QA_RUBRIC,
@@ -130,10 +131,23 @@ class IsekaiVisualQA:
                     "display": "slider",
                 }),
                 "unload_comfy_models": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "Release ComfyUI models from VRAM before Ollama vision inference.",
+                    "default": False,
+                    "tooltip": "Release ComfyUI models from VRAM before local Ollama inference.",
                 }),
-            }
+            },
+            "optional": {
+                "generation_prompt": ("STRING", {
+                    "default": "",
+                    "multiline": True,
+                    "forceInput": True,
+                    "tooltip": "The final positive prompt used to generate this image.",
+                }),
+                "secondary_model": ("STRING", {
+                    "default": DEFAULT_SECONDARY_MODEL,
+                    "multiline": False,
+                    "tooltip": "Optional OpenRouter agreement reviewer. Leave blank to disable.",
+                }),
+            },
         }
 
     RETURN_TYPES = ("IMAGE", "BOOLEAN", "INT", "STRING")
@@ -144,15 +158,22 @@ class IsekaiVisualQA:
     def evaluate(
         self,
         image: torch.Tensor,
-        model: str = DEFAULT_VISION_MODEL,
-        ollama_url: str = "http://localhost:11434",
+        model: str = DEFAULT_OPENROUTER_MODEL,
+        ollama_url: str = "https://openrouter.ai/api/v1",
         rubric: str = DEFAULT_VISUAL_QA_RUBRIC,
         approval_threshold: int = 80,
-        unload_comfy_models: bool = True,
+        unload_comfy_models: bool = False,
+        generation_prompt: str = "",
+        secondary_model: str = DEFAULT_SECONDARY_MODEL,
     ) -> Tuple[torch.Tensor, bool, int, str]:
         threshold = max(0, min(100, int(approval_threshold)))
         rubric = (rubric or "").strip() or DEFAULT_VISUAL_QA_RUBRIC
-        runtime_warnings = _try_unload_comfy_models() if unload_comfy_models else []
+        uses_openrouter = "openrouter.ai" in (ollama_url or "").lower()
+        runtime_warnings = (
+            _try_unload_comfy_models()
+            if unload_comfy_models and not uses_openrouter
+            else []
+        )
 
         try:
             batch = _batch_images(image)
@@ -166,12 +187,23 @@ class IsekaiVisualQA:
             for index, image_tensor in enumerate(batch):
                 pil_image = tensor_to_pil(image_tensor)
                 image_views = _qa_image_views(pil_image)
-                model_report = evaluate_image_with_ollama(
-                    image_bytes=image_views,
-                    model=model,
-                    rubric=rubric,
-                    base_url=ollama_url,
-                )
+                if uses_openrouter:
+                    model_report = evaluate_image_with_openrouter(
+                        image_bytes=image_views,
+                        model=model,
+                        rubric=rubric,
+                        generation_prompt=generation_prompt,
+                        base_url=ollama_url,
+                        secondary_model=secondary_model,
+                    )
+                    runtime_warnings.extend(model_report.get("runtime_warnings", []))
+                else:
+                    model_report = evaluate_image_with_ollama(
+                        image_bytes=image_views,
+                        model=model or DEFAULT_VISION_MODEL,
+                        rubric=rubric,
+                        base_url=ollama_url,
+                    )
                 blocking_issues = model_report["blocking_issues"]
                 image_reports.append({
                     "batch_index": index,

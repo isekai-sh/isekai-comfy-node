@@ -24,7 +24,7 @@ Generate captions, titles, descriptions, and local visual quality reports using 
 - **Claude**: Anthropic's Claude API
 - **OpenAI**: GPT models via OpenAI API
 - **Gemini**: Google's Gemini API
-- **Visual QA**: Local Qwen3-VL image review with a deterministic publication gate
+- **Visual QA**: OpenRouter or local Ollama image review with a publication gate
 
 ### Dataset & String Utilities (4 Nodes)
 Powerful text manipulation for dynamic prompts and batch processing.
@@ -107,38 +107,44 @@ context, and keeps the model loaded in Ollama for 10 minutes.
 
 #### Isekai Visual QA
 
-`Isekai Visual QA` sends each input image to a local Ollama multimodal model and
-passes the original `IMAGE` through unchanged. Install the default model before
-using the node:
+`Isekai Visual QA` passes the original `IMAGE` through unchanged and reviews it
+through OpenRouter by default. Configure `OPENROUTER_API_KEY` in the ComfyUI
+service environment. The default paid reviewer is `qwen/qwen3.8-flash`; the
+free `google/gemma-4-31b-it:free` reviewer acts as an agreement gate. A valid
+rejection from either model fails the image. If the optional free endpoint is
+unavailable, Qwen's decision stands and the outage is recorded in
+`report_json`.
+
+Connect the workflow's final positive prompt to `generation_prompt`. The review
+then checks only the operational requirements: a visible, readable primary
+face; no obvious anatomy failure; and coherence with the final prompt. The
+models return a compact Boolean decision and short failure reasons. Style,
+minor background details, mature content, and intentional stylization are not
+rejection criteria.
+
+The legacy Ollama path remains supported by using an Ollama URL and model. For
+the former default setup, install the model locally:
 
 ```bash
 ollama pull qwen3-vl:8b
 ```
 
-The node returns `approved`, `score`, and a machine-readable `report_json`. It
-keeps Qwen's raw estimate as diagnostic `model_score`, but computes the gate
-score locally: start at 100, subtract 25 per major issue and 5 per minor issue,
-and force zero for any blocking issue. For a batch, the lowest local score must
-meet `approval_threshold`, and every image must contain zero blocking issues.
-Inference and malformed-response errors fail closed with
-`approved = false` and an `inference_error` blocking issue.
+The node returns `approved`, `score`, and machine-readable `report_json`.
+OpenRouter decisions use a backward-compatible score of 100 for pass and 0 for
+fail. Primary inference and malformed-response errors fail closed with
+`approved = false`; optional secondary-reviewer availability errors do not.
 
 The node sends the full frame and four quadrant detail crops together in one
-Ollama request, so small hands and faces remain inspectable in large outputs.
+provider request, so small hands and faces remain inspectable in large outputs.
 Each view is capped at a 1024-pixel longest edge to keep different image aspect
-ratios reliably inside the 16,384-token model context. Crop boundaries
-are not treated as defects. Ollama keeps Qwen loaded for 10 minutes after each
+ratios reliably inside the model context. Crop boundaries are not treated as
+defects. On the legacy path, Ollama keeps Qwen loaded for 10 minutes after each
 response to avoid repeated model reloads. This works best with a dedicated or
 remote Ollama GPU; when Ollama shares ComfyUI's GPU, the model can retain VRAM
 until the keepalive expires or you run `ollama stop qwen3-vl:8b`. The default
-rubric checks malformed hands, fingers, faces and body anatomy; duplication and
-impossible merges; unintended text or watermarks; broken edges, seams, tiling,
-halos, banding, noise, and upscale artifacts; and composition and finish. It is
-a technical-quality gate only: subject matter, mature content, artistic taste,
-and intentional stylization are outside its scope. You can replace the rubric
-per workflow. Enable `unload_comfy_models` to release ComfyUI model memory
-before Ollama inference; unload failures are reported as runtime warnings and
-do not hide the QA result.
+rubric can be replaced per workflow. Enable `unload_comfy_models` only for the
+legacy local path to release ComfyUI model memory before Ollama inference;
+unload failures are reported as runtime warnings and do not hide the QA result.
 
 ### Upload (2 nodes)
 - **Upload to Isekai**: Upload images to Isekai platform. Choose **Manual review**

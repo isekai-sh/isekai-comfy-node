@@ -8,6 +8,7 @@ from PIL import Image
 
 from nodes.visual_qa_node import IsekaiVisualQA, _qa_image_views
 from utils.ollama_vision_client import OllamaVisionError
+from utils.openrouter_vision_client import OpenRouterVisionError
 
 
 def report(score=90, blocking_issues=None, issues=None):
@@ -26,6 +27,7 @@ class IsekaiVisualQATests(unittest.TestCase):
         self.pil_image = Image.new("RGB", (5, 4), "white")
 
     def evaluate(self, model_report, **kwargs):
+        kwargs.setdefault("ollama_url", "http://localhost:11434")
         with patch("nodes.visual_qa_node.tensor_to_pil", return_value=self.pil_image), \
                 patch("nodes.visual_qa_node.pil_to_bytes", return_value=BytesIO(b"png")), \
                 patch(
@@ -41,9 +43,16 @@ class IsekaiVisualQATests(unittest.TestCase):
 
         self.assertEqual(IsekaiVisualQA.RETURN_TYPES, ("IMAGE", "BOOLEAN", "INT", "STRING"))
         self.assertEqual(IsekaiVisualQA.RETURN_NAMES, ("image", "approved", "score", "report_json"))
-        self.assertEqual(inputs["model"][1]["default"], "qwen3-vl:8b")
+        self.assertEqual(inputs["model"][1]["default"], "qwen/qwen3.8-flash")
+        self.assertEqual(inputs["ollama_url"][1]["default"], "https://openrouter.ai/api/v1")
         self.assertEqual(inputs["approval_threshold"][1]["default"], 80)
-        self.assertIs(inputs["unload_comfy_models"][1]["default"], True)
+        self.assertIs(inputs["unload_comfy_models"][1]["default"], False)
+        optional = IsekaiVisualQA.INPUT_TYPES()["optional"]
+        self.assertEqual(
+            optional["secondary_model"][1]["default"],
+            "google/gemma-4-31b-it:free",
+        )
+        self.assertIs(optional["generation_prompt"][1]["forceInput"], True)
 
     def test_full_frame_and_quadrants_are_encoded_as_five_views(self) -> None:
         image = Image.new("RGB", (10, 8), "white")
@@ -116,7 +125,9 @@ class IsekaiVisualQATests(unittest.TestCase):
                     side_effect=reports,
                 ) as evaluate_image, \
                 patch("nodes.visual_qa_node._try_unload_comfy_models", return_value=[]):
-            output_image, approved, score, report_json = IsekaiVisualQA().evaluate(batch)
+            output_image, approved, score, report_json = IsekaiVisualQA().evaluate(
+                batch, ollama_url="http://localhost:11434"
+            )
         parsed = json.loads(report_json)
 
         self.assertIs(output_image, batch)
@@ -134,7 +145,9 @@ class IsekaiVisualQATests(unittest.TestCase):
                     "nodes.visual_qa_node.evaluate_image_with_ollama",
                     side_effect=OllamaVisionError("model unavailable"),
                 ), patch("nodes.visual_qa_node._try_unload_comfy_models", return_value=[]):
-            output_image, approved, score, report_json = IsekaiVisualQA().evaluate(self.image)
+            output_image, approved, score, report_json = IsekaiVisualQA().evaluate(
+                self.image, ollama_url="http://localhost:11434"
+            )
         parsed = json.loads(report_json)
 
         self.assertIs(output_image, self.image)
@@ -153,7 +166,11 @@ class IsekaiVisualQATests(unittest.TestCase):
                     "nodes.visual_qa_node._try_unload_comfy_models",
                     return_value=["Could not unload Comfy models: busy"],
                 ):
-            _, approved, _, report_json = IsekaiVisualQA().evaluate(self.image)
+            _, approved, _, report_json = IsekaiVisualQA().evaluate(
+                self.image,
+                ollama_url="http://localhost:11434",
+                unload_comfy_models=True,
+            )
         parsed = json.loads(report_json)
 
         self.assertIs(approved, True)
@@ -161,6 +178,56 @@ class IsekaiVisualQATests(unittest.TestCase):
             parsed["runtime_warnings"],
             ["Could not unload Comfy models: busy"],
         )
+
+    def test_openrouter_receives_final_prompt_and_secondary_model(self) -> None:
+        cloud_report = {
+            **report(score=100),
+            "runtime_warnings": ["secondary skipped"],
+        }
+        with patch("nodes.visual_qa_node.tensor_to_pil", return_value=self.pil_image), \
+                patch("nodes.visual_qa_node.pil_to_bytes", return_value=BytesIO(b"png")), \
+                patch(
+                    "nodes.visual_qa_node.evaluate_image_with_openrouter",
+                    return_value=cloud_report,
+                ) as evaluate_image, \
+                patch("nodes.visual_qa_node._try_unload_comfy_models") as unload:
+            _, approved, score, report_json = IsekaiVisualQA().evaluate(
+                self.image,
+                model="qwen/qwen3.8-flash",
+                ollama_url="https://openrouter.ai/api/v1",
+                generation_prompt="character dancing on a rooftop",
+                secondary_model="google/gemma-4-31b-it:free",
+                unload_comfy_models=True,
+            )
+
+        self.assertIs(approved, True)
+        self.assertEqual(score, 100)
+        self.assertEqual(json.loads(report_json)["runtime_warnings"], ["secondary skipped"])
+        unload.assert_not_called()
+        self.assertEqual(
+            evaluate_image.call_args.kwargs["generation_prompt"],
+            "character dancing on a rooftop",
+        )
+        self.assertEqual(
+            evaluate_image.call_args.kwargs["secondary_model"],
+            "google/gemma-4-31b-it:free",
+        )
+
+    def test_openrouter_error_fails_closed(self) -> None:
+        with patch("nodes.visual_qa_node.tensor_to_pil", return_value=self.pil_image), \
+                patch("nodes.visual_qa_node.pil_to_bytes", return_value=BytesIO(b"png")), \
+                patch(
+                    "nodes.visual_qa_node.evaluate_image_with_openrouter",
+                    side_effect=OpenRouterVisionError("invalid API key"),
+                ):
+            _, approved, score, report_json = IsekaiVisualQA().evaluate(
+                self.image,
+                ollama_url="https://openrouter.ai/api/v1",
+            )
+
+        self.assertIs(approved, False)
+        self.assertEqual(score, 0)
+        self.assertIn("invalid API key", json.loads(report_json)["blocking_issues"][0]["description"])
 
 
 if __name__ == "__main__":
