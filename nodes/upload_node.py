@@ -131,6 +131,12 @@ class IsekaiUploadNode:
                     "multiline": False,
                     "tooltip": "Injected by Isekai Core to make the upload idempotent."
                 }),
+                "qa_report": ("STRING", {
+                    "default": "",
+                    "multiline": True,
+                    "forceInput": True,
+                    "tooltip": "Connect the Visual QA report output so Core can show review reasons."
+                }),
             }
         }
 
@@ -254,6 +260,56 @@ class IsekaiUploadNode:
 
         return review_policy
 
+    def _summarize_qa_report(self, qa_report: str, qa_approved: bool) -> str:
+        """Reduce the internal QA report to safe, bounded review context for Core."""
+        raw_report = str(qa_report or "").strip()
+        if not raw_report:
+            return ""
+
+        try:
+            report = json.loads(raw_report)
+        except (TypeError, ValueError):
+            report = {}
+
+        if not isinstance(report, dict):
+            report = {}
+
+        reasons = []
+        issues = report.get("blocking_issues", [])
+        if isinstance(issues, list):
+            for issue in issues[:12]:
+                if not isinstance(issue, dict):
+                    continue
+                text = str(issue.get("description") or issue.get("text") or "").strip()
+                if not text:
+                    continue
+                reason = {"text": text[:500]}
+                category = str(issue.get("category") or "").strip()
+                location = str(issue.get("location") or "").strip()
+                if category:
+                    reason["category"] = category[:100]
+                if location:
+                    reason["location"] = location[:100]
+                reasons.append(reason)
+
+        approved = report.get("approved")
+        if not isinstance(approved, bool):
+            approved = qa_approved is True
+        if not approved and not reasons:
+            reasons.append({"text": "Visual QA did not approve this image."})
+
+        score = report.get("score")
+        if not isinstance(score, (int, float)) or isinstance(score, bool):
+            score = None
+
+        summary = {
+            "source": "visual_qa",
+            "approved": approved,
+            "score": score,
+            "reasons": reasons,
+        }
+        return json.dumps(summary, ensure_ascii=False, separators=(",", ":"))
+
     def upload(
         self,
         image: torch.Tensor,
@@ -267,6 +323,7 @@ class IsekaiUploadNode:
         qa_approved: bool = False,
         generation_run_id: str = "",
         generation_output_key: str = "",
+        qa_report: str = "",
     ) -> Tuple[torch.Tensor]:
         """
         Upload image to Isekai platform with metadata and compression.
@@ -285,6 +342,7 @@ class IsekaiUploadNode:
             qa_approved: QA decision for "Use QA decision"; missing/false defaults to manual review
             generation_run_id: Core-managed run identifier (normally injected automatically)
             generation_output_key: Core-managed idempotency key (normally injected automatically)
+            qa_report: Visual QA report used to show concise review reasons in Core
 
         Returns:
             Tuple containing the input image unchanged (pass-through for preview)
@@ -351,6 +409,7 @@ class IsekaiUploadNode:
                 "reviewPolicy": review_policy,
                 "generationRunId": generation_run_id.strip(),
                 "generationOutputKey": generation_output_key.strip(),
+                "generationQa": self._summarize_qa_report(qa_report, qa_approved),
             }
 
             # Upload to Isekai
@@ -442,6 +501,8 @@ class IsekaiUploadNode:
             data["generationRunId"] = metadata["generationRunId"]
         if metadata.get("generationOutputKey"):
             data["generationOutputKey"] = metadata["generationOutputKey"]
+        if metadata.get("generationQa"):
+            data["generationQa"] = metadata["generationQa"]
 
         try:
             response = requests.post(

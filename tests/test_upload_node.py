@@ -1,3 +1,4 @@
+import json
 import unittest
 from io import BytesIO
 from inspect import signature
@@ -30,6 +31,7 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
                 "qa_approved",
                 "generation_run_id",
                 "generation_output_key",
+                "qa_report",
             ],
         )
         options, config = optional_inputs["submission_policy"]
@@ -59,8 +61,43 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
         )
         self.assertEqual(
             list(signature(IsekaiUploadNode.upload).parameters)[-1],
-            "generation_output_key",
+            "qa_report",
         )
+
+    def test_qa_report_is_reduced_to_bounded_review_context(self):
+        report = json.dumps(
+            {
+                "approved": False,
+                "score": 0,
+                "final_prompt": "must never be forwarded",
+                "blocking_issues": [
+                    {
+                        "category": "anatomy",
+                        "description": "The left hand has duplicated fingers.",
+                        "location": "left hand",
+                    }
+                ],
+            }
+        )
+
+        summary = json.loads(self.node._summarize_qa_report(report, False))
+
+        self.assertEqual(
+            summary,
+            {
+                "source": "visual_qa",
+                "approved": False,
+                "score": 0,
+                "reasons": [
+                    {
+                        "text": "The left hand has duplicated fingers.",
+                        "category": "anatomy",
+                        "location": "left hand",
+                    }
+                ],
+            },
+        )
+        self.assertNotIn("final_prompt", summary)
 
     def test_policy_labels_map_to_wire_values(self):
         self.assertEqual(
@@ -239,6 +276,29 @@ class IsekaiUploadSubmissionPolicyTests(unittest.TestCase):
             post.call_args.kwargs["data"]["generationOutputKey"],
             "run-1:0",
         )
+
+    @patch("nodes.upload_node.requests.post")
+    def test_multipart_request_includes_generation_qa(self, post: Mock):
+        response = Mock(status_code=200)
+        response.json.return_value = {"status": "review"}
+        post.return_value = response
+        qa_summary = '{"source":"visual_qa","approved":false,"score":0,"reasons":[]}'
+
+        self.node._upload_to_isekai(
+            image_bytes=b"image",
+            filename="test.png",
+            api_key="test-key",
+            api_url="https://isekai.example",
+            metadata={
+                "title": "Test",
+                "tags": "",
+                "reviewPolicy": "manual_review",
+                "generationQa": qa_summary,
+            },
+            format="PNG",
+        )
+
+        self.assertEqual(post.call_args.kwargs["data"]["generationQa"], qa_summary)
 
     @patch("nodes.upload_node.requests.post")
     def test_internal_upload_call_defaults_to_manual_review(self, post: Mock):
